@@ -1,0 +1,2 @@
+config:
+  random-secret:passwordLength: "16"

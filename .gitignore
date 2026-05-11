@@ -1,0 +1,18 @@
+# Pulumi local-file backend (created by `pulumi login --local`).
+.pulumi/
+pulumi-state/
+
+# Reeve local-filesystem state bucket.
+.reeve-state/
+
+# Go build artefacts.
+/bin/
+/dist/
+
+# Local override / scratch.
+.local/
+*.local.yaml
+
+# IDE.
+.idea/
+.vscode/

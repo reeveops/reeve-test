@@ -1,0 +1,50 @@
+version: 1
+config_type: shared
+
+# State (locks, run manifests, audit) lives in a local directory so this
+# repo runs end-to-end with no cloud creds. Swap to s3/gcs/azure when
+# pointing this at a real environment.
+bucket:
+  type: filesystem
+  name: ./.reeve-state
+
+comments:
+  sort: status_grouped
+  collapse_threshold: 10
+  show_gates: true
+
+locking:
+  ttl: 4h
+  queue: fifo
+
+approvals:
+  sources:
+    - type: pr_review
+      enabled: true
+  default:
+    required_approvals: 1
+    approvers:
+      - "@infra-reviewers"
+    codeowners: false
+    dismiss_on_new_commit: true
+  stacks:
+    "*/prod":
+      required_approvals: 2
+      approvers:
+        - "@sre"
+        - "@security"
+      require_all_groups: true
+
+preconditions:
+  require_up_to_date: true
+  # Disable while iterating locally - the gate self-references reeve's
+  # own check_run when running through the GitHub Action and there's no
+  # value gating against checks for a local run.
+  require_checks_passing: false
+  preview_freshness: 2h
+  preview_max_commits_behind: 5
+
+apply:
+  trigger: comment
+  command: "/reeve apply"
+  allow_fork_prs: false

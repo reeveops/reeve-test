@@ -1,0 +1,3 @@
+name: random-secret
+runtime: go
+description: Toy Pulumi Go project that generates a RandomPassword. Pairs with random-name to exercise reeve discovery across multiple stacks.
