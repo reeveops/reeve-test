@@ -1,8 +1,26 @@
 # reeve-test
 
-End-to-end test fixture for [reeve](../reeve). Two Pulumi Go projects, the
-`random` provider only (so no cloud credentials are needed), and a
-`.reeve/` config that points at a local-filesystem state bucket.
+End-to-end test fixture and public playground for
+[reeve](https://github.com/reeveops/reeve). Pulumi + OpenTofu projects,
+the `random` provider only, no cloud credentials, local-filesystem state.
+
+## Try it live
+
+Open a PR against this repo and watch reeve work:
+
+1. Fork, edit [`tf/envs/random-name/main.tf`](./tf/envs/random-name/main.tf)
+   (bump `length`, rename the pet, anything)
+2. Open the PR. reeve posts one comment: per-stack plan, gate trace
+3. Push again. The same comment rewrites in place
+4. Comment `/reeve preview` to re-run, `/reeve help` for the command list
+
+What you'll hit, by design:
+
+- `/reeve apply` is denied: you're not an approver, and fork PRs are
+  dry-run-only (`allow_fork_prs: false`)
+- Fork PRs run with zero secrets. The `tf/` root needs none; the Pulumi
+  root needs `PULUMI_ACCESS_TOKEN`, so target `tf/` for the full loop
+- First-time contributors may need a maintainer to approve the workflow run
 
 ## Layout
 
@@ -21,18 +39,17 @@ reeve-test/
 
 ## One-time setup
 
-With [mise](https://mise.jdx.dev) (installs go + pulumi, builds reeve,
-inits the backend and all four stacks):
+With [mise](https://mise.jdx.dev):
 
 ```bash
 mise install
 mise run setup
 ```
 
-Day-to-day shortcuts: `mise run lint | stacks | preview | locks | state`,
-`mise run tidy | update` for go.mod maintenance, `mise run check` before
-pushing, `mise run clean` to fresh-start the fixture. `mise tasks` lists
-everything.
+- `setup`: builds sibling reeve, local pulumi backend, inits all four stacks
+- Daily: `lint` / `stacks` / `preview` / `locks` / `state`
+- Go deps: `tidy` / `update`
+- Pre-push: `check`. Fresh start: `clean`. Full list: `mise tasks`
 
 Or by hand:
 
@@ -130,8 +147,8 @@ bucket:
 
 ## OpenTofu / Terraform scenarios (`tf/`)
 
-reeve allows one engine config per root, so the HCL scenarios live under
-`tf/` as their own self-contained consumer root with its own `.reeve/`:
+reeve allows one engine config per root. The HCL scenarios are a second
+consumer root under `tf/`:
 
 ```
 tf/
@@ -143,64 +160,58 @@ tf/
     └── random-fail/     # terraform_data + local-exec exit 1; plan clean, apply fails
 ```
 
-Fully self-contained: the hashicorp/random provider plus the builtin
-`terraform_data`, default local state, no cloud credentials. Declared
-workspaces are authoritative, so reeve creates them on first use with no
-manual `tofu workspace new`.
-
-Local loop (mise installs `opentofu`):
-
-```bash
-mise run tf-lint
-mise run tf-stacks
-mise run tf-preview
-```
-
-In CI, [`reeve-tf.yml`](./.github/workflows/reeve-tf.yml) runs the same
-action with `root: tf` after an `opentofu/setup-opentofu` step (the reeve
-action installs pulumi itself, not tofu). A PR touching only `tf/` maps to
-no stacks in the pulumi root and vice versa, so the two workflows coexist.
-`engine.type: terraform` with `binary.path: terraform` gives the identical
-flow under Terraform instead of OpenTofu (one adapter, two registrations).
-
-Every playbook scenario below also works in the tf root: same approvals
-and break-glass config, with `envs/random-name` (prod workspace) for the
-blocked and break-glass shots and `envs/random-fail` for the failed apply.
+- Self-contained: hashicorp/random + builtin `terraform_data`, local state, no cloud creds
+- Declared workspaces are authoritative; reeve creates them on first use
+- Local loop: `mise run tf-lint` / `tf-stacks` / `tf-preview` (mise installs `opentofu`)
+- CI: [`reeve-tf.yml`](./.github/workflows/reeve-tf.yml) adds `opentofu/setup-opentofu`
+  and passes `root: tf`. The reeve action installs pulumi, not tofu
+- A PR touching one root maps to zero stacks in the other. Both workflows coexist
+- Terraform instead of OpenTofu: `engine.type: terraform`, `binary.path: terraform`.
+  One adapter, two registrations
+- Playbook below works here too: `envs/random-name` prod workspace for the blocked
+  and break-glass shots, `envs/random-fail` for the failed apply
 
 ## Scenario playbook (two-user screenshot runs)
 
-First: replace every `YOUR-SECOND-USER` in
-[`.reeve/shared.yaml`](./.reeve/shared.yaml) with the second GitHub
-account. GitHub refuses self-approval, which this playbook exploits: dev
-stacks need 1 approval (the other user can grant it); `*/prod` needs 2
-(unreachable with two accounts), keeping prod permanently blocked for the
-blocked-gate and break-glass shots.
+Setup:
 
-**1. Happy path.** User A opens a PR touching
-`projects/random-name/main.go` (or its dev config). User B approves.
-User A comments `/reeve apply`. Screenshot the preview comment, the clear
-gate trace, and the applied timeline.
+- Replace every `YOUR-SECOND-USER` in both `shared.yaml` files
+- GitHub refuses self-approval. Dev stacks need 1 approval: user B grants it
+- `*/prod` needs 2: unreachable with two accounts. Prod stays blocked, on purpose
 
-**2. Blocked apply.** PR touching a prod stack config
-(`projects/random-name/Pulumi.prod.yaml`). User B approves (1 of 2).
-User A comments `/reeve apply`. Screenshot the gate trace with
-`approvals 1 of 2` and the blocked notice. Nothing runs.
+**1. Happy path**
 
-**3. Break-glass.** Same blocked PR. User A comments:
-`/reeve breakglass "prod is down, demo run" apply`
-Screenshot the gate trace showing approvals overridden as a warning, the
-apply, and the audit entry under `.reeve-state/` (or the bucket).
+- PR touches `projects/random-name/main.go`
+- B approves. A comments `/reeve apply`
+- Shots: preview comment, clear gate trace, applied timeline
 
-**4. Failed apply.** PR touching `projects/random-fail/main.go`. User B
-approves, User A comments `/reeve apply`. Preview is a clean +1 create;
-the create command exits 1, so the apply fails. Screenshot the failed
-timeline entry and the failing-stack ref.
+**2. Blocked apply**
 
-**5. Drift.** After an applied state exists, mutate state outside git,
-e.g. locally: `cd projects/random-name && pulumi destroy -s dev --yes`
-(same backend CI uses). Run the drift workflow (Actions tab, `drift`,
-Run workflow). `drift_detected` opens a labeled GitHub issue. Re-apply,
-re-run drift, and the issue closes via `drift_resolved`.
+- PR touches `projects/random-name/Pulumi.prod.yaml`
+- B approves (1 of 2). A comments `/reeve apply`
+- Nothing runs
+- Shots: `approvals 1 of 2` gate trace, blocked notice
+
+**3. Break-glass**
+
+- Same blocked PR
+- A comments `/reeve breakglass "prod is down, demo run" apply`
+- Shots: approvals-overridden warning in the trace, the apply, the audit entry in the bucket
+
+**4. Failed apply**
+
+- PR touches `projects/random-fail/main.go`
+- B approves. A comments `/reeve apply`
+- Plan is a clean +1 create. The create command exits 1. Apply fails
+- Shots: failed timeline entry, failing-stack ref
+
+**5. Drift**
+
+- Needs applied state
+- Mutate state outside git: `cd projects/random-name && pulumi destroy -s dev --yes`
+- Actions tab, `drift`, Run workflow
+- `drift_detected` opens a labeled issue
+- Re-apply, re-run drift: `drift_resolved` closes it
 
 ## What's intentionally off
 
