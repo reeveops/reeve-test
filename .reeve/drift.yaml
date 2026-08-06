@@ -1,0 +1,20 @@
+version: 1
+config_type: drift
+
+scope:
+  include_patterns: ["*/dev", "*/prod"]
+
+behavior:
+  refresh_before_check: true
+  max_parallel_stacks: 2
+  state_bootstrap:
+    # First run baselines current state instead of requiring a manual
+    # sign-off; the fixture optimizes for a fast demo loop.
+    mode: baseline
+
+# One GitHub issue per drifted stack; drift_resolved / check_recovered
+# close it again. Needs `issues: write` (the drift workflow grants it).
+channels:
+  - type: github_issue
+    labels: ["drift"]
+    on: [drift_detected, drift_resolved, check_failed]

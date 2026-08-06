@@ -1,0 +1,27 @@
+version: 1
+config_type: engine
+
+engine:
+  type: tofu
+  binary:
+    path: tofu
+
+  # A root-module directory is a project; a workspace is a stack.
+  # Declared stacks are authoritative: reeve creates a declared-but-missing
+  # workspace on first use, so no manual `tofu workspace new` is needed.
+  stacks:
+    - project: random-name
+      path: envs/random-name
+      stacks: [dev, prod]
+    - project: random-fail
+      path: envs/random-fail
+      stacks: [default]
+
+  change_mapping:
+    ignore_changes:
+      - "**/*.md"
+      - "**/README*"
+
+  execution:
+    max_parallel_stacks: 2
+    preview_timeout: 5m

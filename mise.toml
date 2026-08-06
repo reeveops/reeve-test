@@ -1,0 +1,113 @@
+[settings]
+experimental = true
+
+[tools]
+go = "latest"
+pulumi = "latest"
+opentofu = "latest"
+
+[env]
+# Matches the README one-time setup; any string works, it only encrypts
+# the local passphrase-provider secrets.
+PULUMI_CONFIG_PASSPHRASE = "reeve-test"
+# Prefer the sibling repo's freshly built reeve over anything on PATH.
+_.path = ["../reeve/bin"]
+
+# ── setup ──────────────────────────────────────────────────────────────
+
+[tasks.setup]
+run = """
+( cd ../reeve && go build -o bin/reeve ./cmd/reeve )
+pulumi login file://./pulumi-state
+go mod tidy
+for p in random-name:dev random-name:prod random-secret:dev random-fail:dev; do
+  proj="${p%%:*}"; stack="${p##*:}"
+  ( cd "projects/$proj" && pulumi stack init "$stack" --secrets-provider=passphrase --non-interactive 2>/dev/null || true )
+done
+echo "setup complete - try: mise run lint"
+"""
+description = "One-time setup: build sibling reeve, local pulumi backend, init all stacks"
+
+[tasks.reeve-build]
+run = "( cd ../reeve && go build -o bin/reeve ./cmd/reeve )"
+description = "Rebuild reeve from the sibling repo into ../reeve/bin"
+
+# ── reeve against the fixture ──────────────────────────────────────────
+
+[tasks.lint]
+run = "reeve lint"
+description = "Validate the .reeve/ config with reeve's linter"
+
+[tasks.stacks]
+run = "reeve stacks"
+description = "Enumerate the stacks reeve discovers"
+
+[tasks.preview]
+run = "reeve run preview --local"
+description = "Local preview across all stacks (needs setup first)"
+
+[tasks.locks]
+run = "reeve locks list"
+description = "List current stack locks"
+
+[tasks.state]
+run = "ls -R .reeve-state/ 2>/dev/null || echo 'no state yet - run a preview or apply first'"
+description = "Inspect what reeve wrote to the filesystem bucket"
+
+# ── reeve against the tf/ (OpenTofu) root ──────────────────────────────
+
+[tasks.tf-lint]
+run = "reeve lint"
+dir = "tf"
+description = "Validate the tf/.reeve/ config with reeve's linter"
+
+[tasks.tf-stacks]
+run = "reeve stacks"
+dir = "tf"
+description = "Enumerate the stacks reeve discovers in the tf root"
+
+[tasks.tf-preview]
+run = "reeve run preview --local"
+dir = "tf"
+description = "Local OpenTofu preview across the tf stacks"
+
+# ── go maintenance ─────────────────────────────────────────────────────
+
+[tasks.fmt]
+run = "go fmt ./..."
+description = "Format Go source"
+
+[tasks.vet]
+run = "go vet ./..."
+description = "Run go vet across the projects"
+
+[tasks.tidy]
+run = "go mod tidy"
+description = "Tidy go.mod / go.sum"
+
+[tasks.update]
+run = """
+mise upgrade go
+go get go@latest
+go get toolchain@latest
+go get -u ./...
+go mod tidy
+go vet ./...
+"""
+description = "Bump Go toolchain + all deps to latest, tidy, and vet"
+
+[tasks.check]
+depends = ["fmt", "vet", "lint", "stacks", "tf-lint", "tf-stacks"]
+description = "Format, vet, and validate both fixture roots - run before pushing"
+
+# ── maintenance ────────────────────────────────────────────────────────
+
+[tasks.clean]
+run = "rm -rf .reeve-state/ pulumi-state/"
+description = "Remove local reeve + pulumi state (fresh-start the fixture)"
+
+# ── reeveops standard verb set ────────────────────────────────────────
+
+[tasks.format]
+depends = ["fmt"]
+description = "Format Go source (alias for `fmt`)"

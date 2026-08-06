@@ -1,0 +1,3 @@
+name: random-fail
+runtime: go
+description: Deliberately failing project. Preview is clean (+1 create); apply always fails, so reeve's failed-apply reporting can be exercised and screenshotted on demand.

@@ -1,0 +1,56 @@
+version: 1
+config_type: shared
+
+# Mirror of the root fixture's shared.yaml for the OpenTofu subtree.
+# reeve allows one engine config per root, so the tf scenarios live under
+# their own consumer root (the action's `root: tf` input points here).
+bucket:
+  type: filesystem
+  name: ./.reeve-state
+
+comments:
+  sort: status_grouped
+  collapse_threshold: 10
+  show_gates: true
+
+locking:
+  ttl: 4h
+  queue: fifo
+
+# Same two-user demo mechanics as the root fixture: dev needs 1 approval,
+# */prod needs 2 (unreachable with two accounts, GitHub refuses
+# self-approval) so the blocked-gate and break-glass shots work here too.
+approvals:
+  sources:
+    - type: pr_review
+      enabled: true
+  default:
+    required_approvals: 1
+    approvers:
+      - "@TheFynx"
+      - "@YOUR-SECOND-USER"
+    codeowners: false
+    dismiss_on_new_commit: true
+  stacks:
+    "*/prod":
+      required_approvals: 2
+      approvers:
+        - "@TheFynx"
+        - "@YOUR-SECOND-USER"
+
+break_glass:
+  authorized:
+    internal_list: ["TheFynx", "YOUR-SECOND-USER"]
+    codeowners: false
+    anyone: false
+  override_freeze: true
+
+preconditions:
+  require_up_to_date: true
+  require_checks_passing: false
+  preview_freshness: 2h
+  preview_max_commits_behind: 5
+
+apply:
+  trigger: comment
+  allow_fork_prs: false

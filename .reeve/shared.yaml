@@ -17,6 +17,11 @@ locking:
   ttl: 4h
   queue: fifo
 
+# Two-user demo wiring: bare @user entries are individual approvers (a
+# slash makes it a team slug). GitHub refuses self-approval, so with two
+# accounts: dev stacks (1 approval) can go green, while */prod (2
+# approvals) stays permanently blocked - that IS the demo: screenshot the
+# blocked gate trace, then break-glass past it.
 approvals:
   sources:
     - type: pr_review
@@ -24,16 +29,26 @@ approvals:
   default:
     required_approvals: 1
     approvers:
-      - "@infra-reviewers"
+      - "@TheFynx"
+      - "@YOUR-SECOND-USER"
     codeowners: false
     dismiss_on_new_commit: true
   stacks:
     "*/prod":
       required_approvals: 2
       approvers:
-        - "@sre"
-        - "@security"
-      require_all_groups: true
+        - "@TheFynx"
+        - "@YOUR-SECOND-USER"
+
+# Emergency apply for the break-glass demo: overrides approvals (and
+# freeze), never locks/checks/freshness. Every use writes a loud audit
+# entry; a justification is mandatory.
+break_glass:
+  authorized:
+    internal_list: ["TheFynx", "YOUR-SECOND-USER"]
+    codeowners: false
+    anyone: false
+  override_freeze: true
 
 preconditions:
   require_up_to_date: true
@@ -46,5 +61,4 @@ preconditions:
 
 apply:
   trigger: comment
-  command: "/reeve apply"
   allow_fork_prs: false

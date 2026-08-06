@@ -1,4 +1,4 @@
-name: reeve
+name: reeve-tf
 
 on:
   pull_request:
@@ -25,9 +25,11 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || (github.event.issue.pull_request && format('refs/pull/{0}/head', github.event.issue.number)) || github.sha }}
 
-      - uses: reeveops/reeve@master
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      # The reeve action installs pulumi itself but not tofu.
+      - uses: opentofu/setup-opentofu@v1
         with:
-          pulumi-version: latest
+          tofu_wrapper: false
+
+      - uses: reeveops/reeve@master
+        with:
+          root: tf

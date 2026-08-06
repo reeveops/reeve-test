@@ -2,8 +2,14 @@
 .pulumi/
 pulumi-state/
 
-# Reeve local-filesystem state bucket.
+# Reeve local-filesystem state bucket (root and tf/ roots).
 .reeve-state/
+
+# Terraform / OpenTofu local state and plugin caches (tf/ subtree).
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfstate.d/
 
 # Go build artefacts.
 /bin/
