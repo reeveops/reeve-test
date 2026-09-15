@@ -1,0 +1,62 @@
+name: Local E2E
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      reeve-ref:
+        description: Reeve commit to test
+        type: string
+        default: "1847a83f6ec8cf4b6d9baa4054393f6666a51ad9"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-local-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lifecycle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout test fixtures
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Checkout Reeve source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: reeveops/reeve
+          ref: ${{ inputs.reeve-ref || '1847a83f6ec8cf4b6d9baa4054393f6666a51ad9' }}
+          path: .local/reeve-source
+          persist-credentials: false
+
+      - name: Install E2E tools
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4
+        with:
+          cache_save: ${{ github.event_name != 'pull_request' }}
+          mise_toml: |
+            [tools]
+            go = "1.26.6"
+            opentofu = "1.12.6"
+
+      - name: Build Reeve
+        run: mise exec -- go -C .local/reeve-source build -o bin/reeve ./cmd/reeve
+
+      - name: Run real CLI and engine scenarios
+        run: mise exec -- go test -race -tags=e2e -count=1 -v ./e2e -args --reeve .local/reeve-source/bin/reeve --report-dir e2e-report
+
+      - name: Save diagnostic reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-local-${{ github.run_id }}-${{ github.run_attempt }}
+          path: e2e-report/
+          if-no-files-found: warn
+          retention-days: 7

@@ -32,6 +32,21 @@ description = "One-time setup: build sibling reeve, local pulumi backend, init a
 run = "( cd ../reeve && go build -o bin/reeve ./cmd/reeve )"
 description = "Rebuild reeve from the sibling repo into ../reeve/bin"
 
+[tasks."e2e:build"]
+run = "mise -C ../reeve run build"
+description = "Build the sibling Reeve checkout with its own pinned Go toolchain"
+
+[tasks.e2e]
+depends = ["e2e:build"]
+tools = { opentofu = "1.12.6" }
+run = "go test -race -tags=e2e -count=1 -v ./e2e -args"
+description = "Run disposable CLI E2E scenarios without GitHub or cloud credentials"
+
+[tasks."e2e:run"]
+tools = { opentofu = "1.12.6" }
+run = "go test -race -tags=e2e -count=1 -v ./e2e -args"
+description = "Run E2E against an existing binary; accepts --reeve and --report-dir"
+
 # ── reeve against the fixture ──────────────────────────────────────────
 
 [tasks.lint]

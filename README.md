@@ -4,7 +4,20 @@ End-to-end test fixture and public playground for
 [reeve](https://github.com/reeveops/reeve). Pulumi + OpenTofu projects,
 the `random` provider only, no cloud credentials, local-filesystem state.
 
-## Try it live
+## Automated E2E first
+
+```bash
+mise run e2e
+```
+
+- Builds sibling `../reeve` with its own toolchain and runs real Reeve/OpenTofu processes.
+- Uses a simulated GitHub API and disposable state; no GitHub, AWS, GCP, or Pulumi Cloud token is needed.
+- Verifies create, update, delete, no-op, approval gates, failure persistence, saved plans, and lock cleanup.
+- [Local E2E](.github/workflows/e2e-local.yml) runs the same harness in CI and uploads diagnostic reports.
+- Read [E2E setup and limits](e2e/README.md) and [live GitHub identity setup](e2e/github-apps.md).
+- The older live demo workflows require the repository variable `REEVE_LIVE_DEMO=true` and their state/identity setup below.
+
+## Live demo after state and identity setup
 
 Open a PR against this repo and watch reeve work:
 

@@ -17,6 +17,7 @@ terraform.tfstate.d/
 
 # Local override / scratch.
 .local/
+e2e-report/
 *.local.yaml
 
 # IDE.
