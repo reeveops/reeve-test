@@ -71,7 +71,8 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 
 - This suite covers the public Reeve CLI, real engine, real filesystem adapter, and simulated GitHub REST responses.
 - It does not execute the composite action, real webhook routing, actual GitHub reviews, or cloud SDK storage calls.
-- Follow with Pulumi local-backend coverage, action routing tests, concurrent processes/heartbeat tests, and live GitHub identity tests.
+- [Live GitHub identity tests](github-apps.md) have a separate manual workflow with two Apps and a filesystem bucket in one job.
+- Follow with Pulumi local-backend coverage, action routing tests, and concurrent processes/heartbeat tests.
 - Add AWS/GCP/R2 blob contract lanes after those local checks; a blob lane is separate from the engine's workload provider.
 - Separate GitHub events need storage shared across runners; an in-job filesystem cannot provide that.
 - `reeve` branch `feat/live-integration-harness` currently adds only `checkout-pr-head: false`; this CLI harness does not need that option.

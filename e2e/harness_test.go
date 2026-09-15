@@ -54,6 +54,8 @@ type suite struct {
 	github                                     *githubFixture
 	results                                    []record
 	failure                                    string
+	repo, actor, githubMode                    string
+	pr                                         int
 }
 
 func (s *suite) require(ok bool, format string, args ...any) {
@@ -121,7 +123,7 @@ func newSuite(t *testing.T) *suite {
 		t.Fatal(err)
 	}
 	repoRoot := filepath.Dir(cwd)
-	s := &suite{t: t, github: newGitHub(), results: []record{}}
+	s := &suite{t: t, github: newGitHub(), results: []record{}, repo: repository, actor: author, pr: 1, githubMode: "simulated-loopback"}
 	s.reeve = executable(t, repoRoot, *reeveFlag)
 	s.engine = executable(t, repoRoot, *engineFlag)
 	report := *reportFlag
@@ -184,7 +186,7 @@ func (s *suite) saveReport() {
 	defer s.github.mu.Unlock()
 	for name, value := range map[string]any{
 		"summary.json": object{
-			"status": status, "error": s.failure, "github": "simulated-loopback",
+			"status": status, "error": s.failure, "github": s.githubMode,
 			"reeve": s.reeve, "engine": s.engine, "scenarios": s.results,
 			"api_requests": s.github.state.requests, "unexpected_requests": s.github.state.unexpected,
 		},
@@ -247,9 +249,9 @@ func (s *suite) run(label, command string, expected int) (*manifest, record) {
 		prefix = "run"
 	}
 	r := record{Scenario: label, RunID: fmt.Sprintf("%s-%d-%s", prefix, sequence, sha[:7]), Log: fmt.Sprintf("%02d-%s.log", sequence, label)}
-	args := []string{"run", command, "--root", s.root, "--repo", repository, "--pr", "1", "--sha", sha, "--run-number", strconv.Itoa(sequence)}
+	args := []string{"run", command, "--root", s.root, "--repo", s.repo, "--pr", strconv.Itoa(s.pr), "--sha", sha, "--run-number", strconv.Itoa(sequence)}
 	if command == "apply" {
-		args = append(args, "--actor", author, "--trigger-source", "comment")
+		args = append(args, "--actor", s.actor, "--trigger-source", "comment")
 	}
 	before := len(s.commands())
 	ctx, cancel := context.WithTimeout(s.t.Context(), 120*time.Second)
@@ -277,7 +279,7 @@ func (s *suite) run(label, command string, expected int) (*manifest, record) {
 	}
 	r.EngineCommands = s.commands()[before:]
 	s.write(filepath.Join(s.report, r.Log), output.data, 0600)
-	path := filepath.Join(s.root, ".reeve-state", "runs", "pr-1", r.RunID, "manifest.json")
+	path := filepath.Join(s.root, ".reeve-state", "runs", fmt.Sprintf("pr-%d", s.pr), r.RunID, "manifest.json")
 	var result *manifest
 	if exists(path) {
 		r.Manifest = true
@@ -360,7 +362,7 @@ func (s *suite) audit(r record, outcome string) {
 }
 
 func (s *suite) appliedMarker() bool {
-	return exists(filepath.Join(s.root, ".reeve-state", "runs", "pr-1", "applied", s.github.head()+".json"))
+	return exists(filepath.Join(s.root, ".reeve-state", "runs", fmt.Sprintf("pr-%d", s.pr), "applied", s.github.head()+".json"))
 }
 
 func (s *suite) blocked(label, gateName string) {

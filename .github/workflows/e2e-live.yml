@@ -1,0 +1,154 @@
+name: Live GitHub E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-live
+  cancel-in-progress: false
+
+jobs:
+  lifecycle:
+    if: github.repository == 'reeveops/reeve-test' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: read
+      statuses: read
+    steps:
+      - name: Checkout trusted harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Checkout pinned Reeve source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: reeveops/reeve
+          ref: 1847a83f6ec8cf4b6d9baa4054393f6666a51ad9
+          path: .local/reeve-source
+          persist-credentials: false
+
+      - name: Install tools
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4
+        with:
+          mise_toml: |
+            [tools]
+            go = "1.26.6"
+            opentofu = "1.12.6"
+
+      - name: Build Reeve and Go harness before minting tokens
+        run: |
+          mise exec -- go -C .local/reeve-source build -o bin/reeve ./cmd/reeve
+          mise exec -- go test -race -tags=e2e -c -o .local/live-e2e ./e2e
+
+      - name: Author identity
+        id: author
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ vars.E2E_AUTHOR_APP_ID }}
+          private-key: ${{ secrets.E2E_AUTHOR_PRIVATE_KEY }}
+          owner: reeveops
+          repositories: reeve-test
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Reviewer identity
+        id: reviewer
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ vars.E2E_REVIEWER_APP_ID }}
+          private-key: ${{ secrets.E2E_REVIEWER_PRIVATE_KEY }}
+          owner: reeveops
+          repositories: reeve-test
+          permission-pull-requests: write
+
+      - name: Run live PR and approval lifecycle
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const { spawn } = require('node:child_process');
+            const input = {
+              repository: 'reeveops/reeve-test',
+              run_id: `${context.runId}-${process.env.GITHUB_RUN_ATTEMPT}`,
+              author_token: '${{ steps.author.outputs.token }}',
+              reviewer_token: '${{ steps.reviewer.outputs.token }}',
+              controller_token: '${{ github.token }}',
+              author_login: '${{ steps.author.outputs.app-slug }}[bot]',
+              reviewer_login: '${{ steps.reviewer.outputs.app-slug }}[bot]'
+            };
+            for (const token of [input.author_token, input.reviewer_token, input.controller_token]) {
+              core.setSecret(token);
+            }
+            const child = spawn('mise', ['exec', '--', '../.local/live-e2e',
+              '-test.run=^TestLiveGitHub$', '-test.v', '-test.timeout=8m', '-live',
+              '-reeve', '.local/reeve-source/bin/reeve', '-report-dir', 'e2e-report'], {
+              cwd: `${process.env.GITHUB_WORKSPACE}/e2e`,
+              env: { PATH: process.env.PATH, HOME: process.env.HOME },
+              stdio: ['pipe', 'pipe', 'pipe']
+            });
+            child.stdout.on('data', data => core.info(data.toString()));
+            child.stderr.on('data', data => core.info(data.toString()));
+            child.stdin.on('error', () => {});
+            const finished = new Promise((resolve, reject) => {
+              child.once('error', reject);
+              child.once('close', (code, signal) => resolve({code, signal}));
+            });
+            child.stdin.end(JSON.stringify(input));
+            const result = await finished;
+            if (result.code !== 0) core.setFailed(`Live E2E exited ${result.code}, signal ${result.signal}`);
+
+      - name: Cleanup interrupted fixture
+        if: always() && steps.author.outcome == 'success'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ${{ steps.author.outputs.token }}
+          script: |
+            const fs = require('node:fs');
+            const path = `${process.env.GITHUB_WORKSPACE}/e2e-report/live.json`;
+            if (!fs.existsSync(path)) return;
+            const fixture = JSON.parse(fs.readFileSync(path, 'utf8'));
+            const prefix = `reeve-e2e/${context.runId}-${process.env.GITHUB_RUN_ATTEMPT}-`;
+            if (fixture.repository !== 'reeveops/reeve-test' ||
+                !fixture.branch.startsWith(prefix) ||
+                !/^[a-f0-9]{12}$/.test(fixture.branch.slice(prefix.length))) {
+              throw new Error('Refusing cleanup of an unowned fixture');
+            }
+            const repo = {owner: 'reeveops', repo: 'reeve-test'};
+            if (fixture.pr > 0 && !fixture.closed) {
+              const {data: pr} = await github.rest.pulls.get({...repo, pull_number: fixture.pr});
+              if (pr.head.ref !== fixture.branch || pr.head.repo.full_name !== fixture.repository) {
+                throw new Error('Fixture PR identity mismatch');
+              }
+              await github.rest.pulls.update({...repo, pull_number: fixture.pr, state: 'closed'});
+              fixture.closed = true;
+            }
+            if (fixture.branch_created && !fixture.deleted) {
+              try {
+                await github.rest.git.deleteRef({...repo, ref: `heads/${fixture.branch}`});
+              } catch (error) {
+                if (error.status !== 404 && error.status !== 422) throw error;
+                try {
+                  await github.rest.git.getRef({...repo, ref: `heads/${fixture.branch}`});
+                  throw error;
+                } catch (lookupError) {
+                  if (lookupError.status !== 404) throw lookupError;
+                }
+              }
+              fixture.deleted = true;
+            }
+            fs.writeFileSync(path, JSON.stringify(fixture, null, 2));
+
+      - name: Save diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-live-${{ github.run_id }}-${{ github.run_attempt }}
+          path: e2e-report/
+          if-no-files-found: warn
+          retention-days: 7

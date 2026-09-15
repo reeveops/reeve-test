@@ -3,7 +3,22 @@
 ## First layer
 
 - `mise run e2e` needs no tokens and uses synthetic author/reviewer identities.
-- The live GitHub layer is separate and is not enabled by the local workflow.
+- [Live GitHub E2E](../.github/workflows/e2e-live.yml) is a separate manual workflow on `master`.
+
+## Actions settings
+
+| Name | Kind |
+| --- | --- |
+| `E2E_AUTHOR_APP_ID` | Variable |
+| `E2E_REVIEWER_APP_ID` | Variable |
+| `E2E_AUTHOR_PRIVATE_KEY` | Secret |
+| `E2E_REVIEWER_PRIVATE_KEY` | Secret |
+
+- Repository settings or organization settings granted to `reeve-test` work with the workflow.
+- Environment-scoped settings need that environment added to the live job before dispatch.
+- Open Actions, select **Live GitHub E2E**, and run the workflow from `master`.
+- The job builds its pinned source before minting tokens and discovers App logins from the token action.
+- Tokens enter the Go harness through stdin; Reeve reaches GitHub through a scoped loopback relay and receives only the fixture credential.
 
 ## Two Apps
 
@@ -45,7 +60,7 @@
 ## Live acceptance sequence
 
 1. Author App creates a fixture PR at a recorded head SHA.
-2. Preview persists artifacts to the shared test storage.
+2. Preview persists artifacts to the job's temporary filesystem bucket.
 3. Apply without approval is blocked.
 4. Reviewer App approves that exact head, then the trusted command job applies.
 5. Author App pushes another commit and the old approval is rejected.
@@ -53,4 +68,6 @@
 7. Cleanup closes the test PR and removes only that scenario's resources/state.
 
 - Author and reviewer tokens must not reach untrusted PR workflow code.
-- Add this sequence after trusted configuration, execution isolation, and cross-run storage are in place.
+- This workflow keeps all commands in one job; storage shared across separate workflow runs remains a later test lane.
+- Reports include `live.json` with the owned PR and branch identifiers; cleanup runs in Go and in an `always()` workflow step.
+- A runner lost before cleanup can leave a `reeve-e2e/<run>-<attempt>-<suffix>` branch and PR for manual removal.
