@@ -37,7 +37,9 @@
 
 ## Review policy
 
-- Configure `approvals.sources` with `pr_review` and explicitly allow the reviewer App login in the live fixture's `approvers` list.
+- The default-branch `.github/CODEOWNERS` assigns the lifecycle fixture to both App bot logins.
+- The local and live fixtures enable `codeowners: true` without an explicit approver list, so successful applies prove Reeve resolved the reviewer identity through CODEOWNERS.
+- GitHub requires native code owners to be people or teams with write access; the App entries exist for Reeve's raw CODEOWNERS gate and do not establish GitHub branch-protection eligibility.
 - Keep `dismiss_on_new_commit: true` and submit the review with `commit_id` set to the resolved head SHA.
 - GitHub's review endpoint accepts installation tokens with Pull requests: write. [GitHub review API](https://docs.github.com/en/rest/pulls/reviews#create-a-review-for-a-pull-request).
 - Assert the returned review's author, state, and commit ID before expecting Reeve's gate to pass.
@@ -63,8 +65,8 @@
 1. Author App creates a fixture PR at a recorded head SHA.
 2. The shared workflow previews the OpenTofu lifecycle fixture and the harness waits for its successful check.
 3. Preview persists artifacts to the harness job's temporary filesystem bucket.
-4. Apply without approval is blocked.
-5. Reviewer App approves that exact head, then the trusted command job applies.
+4. Apply without approval is blocked after fetching the default-branch CODEOWNERS file.
+5. Reviewer App approves that exact head, satisfies the CODEOWNERS gate, then the trusted command job applies.
 6. Author App pushes another commit and the old approval is rejected.
 7. Reviewer requests changes and the gate stays blocked.
 8. Cleanup closes the test PR and removes only that scenario's resources/state.

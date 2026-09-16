@@ -1,0 +1,2 @@
+# Reeve resolves these App identities during the live approval lifecycle.
+/tf/envs/lifecycle/ @reeve-e2e-author[bot] @reeve-e2e-reviewer[bot]

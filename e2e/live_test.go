@@ -70,6 +70,9 @@ func TestLiveGitHub(t *testing.T) {
 	if !loginPattern.MatchString(input.AuthorLogin) || !loginPattern.MatchString(input.ReviewerLogin) || input.AuthorLogin == input.ReviewerLogin {
 		t.Fatal("Expected different author/reviewer App logins")
 	}
+	if input.AuthorLogin != author || input.ReviewerLogin != reviewer {
+		t.Fatalf("Installed App logins must match tracked CODEOWNERS: got %s and %s", input.AuthorLogin, input.ReviewerLogin)
+	}
 	if !regexp.MustCompile(`^[0-9]+-[0-9]+$`).MatchString(input.RunID) {
 		t.Fatal("Expected workflow run ID and attempt")
 	}
@@ -91,13 +94,12 @@ func TestLiveGitHub(t *testing.T) {
 		}
 	}
 	s.env = append(s.env, "GITHUB_ACTIONS=true")
-	configPath := filepath.Join(s.root, ".reeve", "shared.yaml")
-	config := strings.ReplaceAll(string(s.read(configPath)), reviewer, input.ReviewerLogin)
-	config = strings.ReplaceAll(config, author, input.AuthorLogin)
-	s.write(configPath, []byte(config), 0600)
 	f.waitChecks()
 	s.preview("live-create-preview", counts{Add: 1})
-	s.blocked("live-missing-approval", "approvals")
+	_, blockedRun := s.blocked("live-missing-approval", "approvals")
+	codeownersRequest := fmt.Sprintf("GET /repos/%s/contents/.github/CODEOWNERS", s.repo)
+	s.require(blockedRun.APIRequests[codeownersRequest] == 1,
+		"Live approval gate fetched CODEOWNERS %d times, expected once", blockedRun.APIRequests[codeownersRequest])
 	f.review("APPROVE", "APPROVED")
 	s.apply("live-create-apply", false)
 	s.require(len(s.resources()) == 1, "Live create did not persist one resource")

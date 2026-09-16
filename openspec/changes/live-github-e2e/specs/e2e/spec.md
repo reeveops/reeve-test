@@ -4,6 +4,7 @@
 
 The harness MUST use different installed GitHub Apps to author PRs and submit reviews.
 It MUST use real Reeve gates and real OpenTofu with disposable local state.
+The reviewer App MUST satisfy Reeve through the default-branch CODEOWNERS file.
 
 #### Scenario: Approval changes with the head commit
 
@@ -11,7 +12,8 @@ It MUST use real Reeve gates and real OpenTofu with disposable local state.
 - WHEN apply runs before approval or after the head changes
 - THEN the approval gate MUST deny without invoking the engine.
 - WHEN the reviewer App approves the current head
-- THEN apply MUST use the saved plan and persist the expected state.
+- THEN Reeve MUST resolve that App as a code owner.
+- Apply MUST use the saved plan and persist the expected state.
 
 #### Scenario: Reviewer requests changes
 

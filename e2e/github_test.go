@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -169,7 +170,13 @@ func (g *githubFixture) route(method, path string, body object) (int, any) {
 			return 200, object{"state": "success", "statuses": []object{}, "total_count": 0}
 		case prefix + "/compare/master..." + s.sha:
 			return 200, object{"behind_by": s.behind}
-		case prefix + "/contents/.github/CODEOWNERS", prefix + "/contents/CODEOWNERS", prefix + "/contents/docs/CODEOWNERS":
+		case prefix + "/contents/.github/CODEOWNERS":
+			content := base64.StdEncoding.EncodeToString([]byte("* @" + author + " @" + reviewer + "\n"))
+			return 200, object{
+				"type": "file", "encoding": "base64", "content": content,
+				"name": "CODEOWNERS", "path": ".github/CODEOWNERS", "sha": strings.Repeat("c", 40),
+			}
+		case prefix + "/contents/CODEOWNERS", prefix + "/contents/docs/CODEOWNERS":
 			return 404, object{"message": "Not Found"}
 		case "/user":
 			return 200, object{"login": controller}

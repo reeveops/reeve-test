@@ -424,7 +424,7 @@ func (s *suite) appliedMarker() bool {
 	return exists(filepath.Join(s.root, ".reeve-state", "runs", fmt.Sprintf("pr-%d", s.pr), "applied", s.github.head()+".json"))
 }
 
-func (s *suite) blocked(label, gateName string) {
+func (s *suite) blocked(label, gateName string) (*manifest, record) {
 	s.t.Helper()
 	before := s.state()
 	m, r := s.run(label, "apply", 0)
@@ -442,6 +442,7 @@ func (s *suite) blocked(label, gateName string) {
 	s.require(!s.appliedMarker(), "%s: false applied marker", label)
 	s.audit(r, "blocked")
 	s.locksReleased()
+	return m, r
 }
 
 func (s *suite) apply(label string, failed bool) {
