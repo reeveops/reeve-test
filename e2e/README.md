@@ -38,6 +38,7 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 | Area | Assertions |
 | --- | --- |
 | Lifecycle | Create, update, delete, and converged no-op through separate CLI processes. |
+| Preview concurrency | Independent OpenTofu projects overlap while workspaces sharing one directory stay serial. |
 | Saved plans | Preview artifact exists; successful apply executes it without re-planning. |
 | Approvals | Missing, self, unlisted, stale, and changes-requested reviews deny apply. |
 | Changed commit | Previous-head approval stops counting on a new head. |
