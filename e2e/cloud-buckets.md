@@ -2,6 +2,8 @@
 
 The manual `Cloud Blob Contract` workflow runs the provider-neutral storage contract against real AWS S3 and Google Cloud Storage buckets. It uses GitHub OIDC federation and stores no cloud credential in GitHub.
 
+Use the checked-in [OpenTofu bootstrap](bootstrap/README.md) to create either backend and populate its repository variables. The details below describe the access boundary enforced by those roots.
+
 ## AWS
 
 Create a disposable S3 bucket and an IAM role trusted only by `reeveops/reeve-test` on `refs/heads/master`. Grant the role these actions on the bucket and its objects:
@@ -17,7 +19,7 @@ Set these repository variables:
 - `E2E_AWS_REGION`
 - `E2E_S3_BUCKET`
 
-The role trust condition must restrict `token.actions.githubusercontent.com:sub` to `repo:reeveops/reeve-test:ref:refs/heads/master`. Keep the audience restricted to `sts.amazonaws.com`.
+The repository uses GitHub's immutable OIDC subject format. Restrict `token.actions.githubusercontent.com:sub` to `repo:reeveops@310228695/reeve-test@1231457834:ref:refs/heads/master` and keep the audience restricted to `sts.amazonaws.com`.
 
 ## GCP
 
@@ -29,7 +31,7 @@ Set these repository variables:
 - `E2E_GCP_SERVICE_ACCOUNT`
 - `E2E_GCS_BUCKET`
 
-Restrict the provider attribute condition to `assertion.repository == 'reeveops/reeve-test'`. Restrict the service-account binding to the repository principal created by that provider.
+Restrict the provider attribute condition and service-account binding to GitHub owner ID `310228695`, repository ID `1231457834`, and `refs/heads/master`.
 
 ## Running the contract
 

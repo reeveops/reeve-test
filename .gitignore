@@ -19,6 +19,7 @@ terraform.tfstate.d/
 .local/
 e2e-report/
 *.local.yaml
+gha-creds-*.json
 
 # IDE.
 .idea/

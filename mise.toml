@@ -47,6 +47,23 @@ tools = { opentofu = "1.12.6", pulumi = "3.262.0" }
 run = "go test -race -tags=e2e -count=1 -v ./e2e -args"
 description = "Run E2E against an existing binary; accepts --reeve and --report-dir"
 
+[tasks."cloud:fmt"]
+tools = { opentofu = "1.12.6" }
+run = "tofu fmt -recursive e2e/bootstrap"
+description = "Format the disposable AWS and GCP contract infrastructure"
+
+[tasks."cloud:validate"]
+tools = { opentofu = "1.12.6" }
+run = """
+set -eu
+for root in e2e/bootstrap/aws e2e/bootstrap/gcp; do
+  tofu -chdir="$root" init -backend=false -input=false
+  tofu -chdir="$root" validate
+done
+bash -n e2e/bootstrap/configure-github.sh
+"""
+description = "Initialize and validate the disposable cloud contract infrastructure"
+
 # ── reeve against the fixture ──────────────────────────────────────────
 
 [tasks.lint]
