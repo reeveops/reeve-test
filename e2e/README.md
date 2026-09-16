@@ -76,5 +76,3 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 - Add AWS/GCP/R2 blob contract lanes after those local checks; a blob lane is separate from the engine's workload provider.
 - Separate GitHub events need storage shared across runners; an in-job filesystem cannot provide that.
 - `reeve` branch `feat/live-integration-harness` currently adds only `checkout-pr-head: false`; this CLI harness does not need that option.
-
-See [the OpenSpec proposal](../openspec/changes/local-e2e/proposal.md) for the test contract and delivery checklist.
