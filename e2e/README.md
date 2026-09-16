@@ -43,6 +43,7 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 | Saved plans | Preview artifact exists; successful apply executes it without re-planning. |
 | Plan modes | Locking off re-plans; missing artifacts fall back; stale plans fail closed. |
 | Refresh | Dry-run and writing refreshes plus apply-with-refresh use the intended engine modes. |
+| Rerun identity | Every CLI path receives a run attempt and resolves the attempt-aware artifact identity after authoritative PR-head lookup. |
 | Pulumi | Local-backend create, no-op, refresh, delete, and saved-plan apply. |
 | Approvals | Missing, self, unlisted, stale, and changes-requested reviews deny apply. |
 | Changed commit | Previous-head approval stops counting on a new head. |

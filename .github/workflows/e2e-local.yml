@@ -10,7 +10,7 @@ on:
       reeve-ref:
         description: Reeve commit to test
         type: string
-        default: "85c53e49b48b306df447186b9dcae6e47668eafd"
+        default: "0fc118139931fde27444ddc3d8527b16fbc381d5"
 
 permissions:
   contents: read
@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: reeveops/reeve
-          ref: ${{ inputs.reeve-ref || '85c53e49b48b306df447186b9dcae6e47668eafd' }}
+          ref: ${{ inputs.reeve-ref || '0fc118139931fde27444ddc3d8527b16fbc381d5' }}
           path: .local/reeve-source
           persist-credentials: false
 
@@ -56,7 +56,7 @@ jobs:
 
       - name: Save diagnostic reports
         if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-local-${{ github.run_id }}-${{ github.run_attempt }}
           path: e2e-report/

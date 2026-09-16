@@ -260,13 +260,14 @@ func (s *suite) runArgs(label, command string, expected int, extra ...string) (*
 		s.github.edit(func(g *githubState) { prReadsBefore = g.requests[prRequestKey] })
 	}
 	sequence := len(s.results) + 1
+	runAttempt := 1
 	sha := s.github.head()
 	prefix := command
 	if command == "preview" {
 		prefix = "run"
 	}
-	r := record{Scenario: label, RunID: fmt.Sprintf("%s-%d-%s", prefix, sequence, sha[:7]), Log: fmt.Sprintf("%02d-%s.log", sequence, label)}
-	args := []string{"run", command, "--root", s.root, "--repo", s.repo, "--pr", strconv.Itoa(s.pr), "--sha", sha, "--run-number", strconv.Itoa(sequence)}
+	r := record{Scenario: label, RunID: fmt.Sprintf("%s-%d-%d-%s", prefix, sequence, runAttempt, sha[:7]), Log: fmt.Sprintf("%02d-%s.log", sequence, label)}
+	args := []string{"run", command, "--root", s.root, "--repo", s.repo, "--pr", strconv.Itoa(s.pr), "--sha", sha, "--run-number", strconv.Itoa(sequence), "--run-attempt", strconv.Itoa(runAttempt)}
 	if command == "apply" || command == "refresh" {
 		args = append(args, "--actor", s.actor)
 	}

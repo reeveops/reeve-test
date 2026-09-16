@@ -16,7 +16,7 @@ on:
         description: Exact Reeve commit to test.
         required: true
         type: string
-        default: "85c53e49b48b306df447186b9dcae6e47668eafd"
+        default: "0fc118139931fde27444ddc3d8527b16fbc381d5"
 
 permissions:
   contents: read
