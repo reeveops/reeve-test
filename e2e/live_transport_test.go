@@ -181,8 +181,9 @@ func (p *liveRelay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if json.Unmarshal(data, &existing) == nil {
 			for _, comment := range existing {
-				if comment.ID > 0 && comment.User.Type == "Bot" && comment.User.Login == "github-actions[bot]" &&
-					strings.Contains(comment.Body, "<!-- reeve:pr-comment:v1 -->") {
+				ownedMarker := strings.Contains(comment.Body, "<!-- reeve:pr-comment:v1 -->") ||
+					strings.Contains(comment.Body, "<!-- reeve:help -->")
+				if comment.ID > 0 && ownedMarker && comment.User.Type == "Bot" && comment.User.Login == "github-actions[bot]" {
 					p.commentIDs[comment.ID] = true
 				}
 			}
@@ -200,16 +201,16 @@ func (p *liveRelay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestLiveRelayCanUpdateSharedWorkflowComment(t *testing.T) {
-	var patchSeen atomic.Bool
+	var patches atomic.Int32
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer controller-fixture-token" {
 			t.Error("Relay did not substitute credential")
 		}
 		switch {
 		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/comments"):
-			_, _ = io.WriteString(w, `[{"id":42,"body":"<!-- reeve:pr-comment:v1 -->\npreview","user":{"login":"github-actions[bot]","type":"Bot"}},{"id":43,"body":"<!-- reeve:pr-comment:v1 -->\nspoof","user":{"login":"other","type":"User"}}]`)
-		case r.Method == http.MethodPatch && strings.HasSuffix(r.URL.Path, "/comments/42"):
-			patchSeen.Store(true)
+			_, _ = io.WriteString(w, `[{"id":42,"body":"<!-- reeve:pr-comment:v1 -->\npreview","user":{"login":"github-actions[bot]","type":"Bot"}},{"id":43,"body":"<!-- reeve:pr-comment:v1 -->\nspoof","user":{"login":"other","type":"User"}},{"id":44,"body":"<!-- reeve:help -->\ncommands","user":{"login":"github-actions[bot]","type":"Bot"}}]`)
+		case r.Method == http.MethodPatch && (strings.HasSuffix(r.URL.Path, "/comments/42") || strings.HasSuffix(r.URL.Path, "/comments/44")):
+			patches.Add(1)
 			_, _ = io.WriteString(w, `{"id":42}`)
 		default:
 			t.Errorf("Unexpected upstream request: %s %s", r.Method, r.URL.Path)
@@ -225,6 +226,7 @@ func TestLiveRelayCanUpdateSharedWorkflowComment(t *testing.T) {
 	for _, request := range []*http.Request{
 		httptest.NewRequest(http.MethodGet, "/api/v3/repos/"+repository+"/issues/1/comments", nil),
 		httptest.NewRequest(http.MethodPatch, "/api/v3/repos/"+repository+"/issues/comments/42", strings.NewReader(`{"body":"updated"}`)),
+		httptest.NewRequest(http.MethodPatch, "/api/v3/repos/"+repository+"/issues/comments/44", strings.NewReader(`{"body":"updated help"}`)),
 	} {
 		request.Header.Set("Authorization", "Bearer "+dummyToken)
 		response := httptest.NewRecorder()
@@ -233,8 +235,8 @@ func TestLiveRelayCanUpdateSharedWorkflowComment(t *testing.T) {
 			t.Fatalf("%s returned %d: %s", request.Method, response.Code, response.Body.String())
 		}
 	}
-	if !patchSeen.Load() {
-		t.Fatal("Relay did not forward the owned comment update")
+	if patches.Load() != 2 {
+		t.Fatalf("Relay forwarded %d owned comment updates, want 2", patches.Load())
 	}
 
 	request := httptest.NewRequest(http.MethodPatch, "/api/v3/repos/"+repository+"/issues/comments/43", nil)
