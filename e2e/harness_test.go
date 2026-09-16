@@ -117,6 +117,10 @@ func executable(t *testing.T, root, value string) string {
 }
 
 func newSuite(t *testing.T) *suite {
+	return newSuiteInReport(t, "")
+}
+
+func newSuiteInReport(t *testing.T, reportSubdir string) *suite {
 	t.Helper()
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -131,6 +135,9 @@ func newSuite(t *testing.T) *suite {
 		report = filepath.Join(".local", "e2e", time.Now().UTC().Format("20060102T150405.000000000Z"))
 	}
 	s.report = absolute(repoRoot, report)
+	if reportSubdir != "" {
+		s.report = filepath.Join(s.report, reportSubdir)
+	}
 	s.check(os.MkdirAll(filepath.Dir(s.report), 0700))
 	s.check(os.Mkdir(s.report, 0700))
 	s.root = t.TempDir()
