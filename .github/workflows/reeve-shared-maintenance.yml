@@ -1,18 +1,14 @@
-name: Reeve Shared Drift E2E
+name: Reeve Shared Maintenance E2E
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: read
-  issues: write
-  id-token: write
 
 jobs:
-  drift:
+  maintenance:
     uses: reeveops/reeve/.github/workflows/reeve.yml@70d42cddada31a6ea8822fbf7b0f627b32da1221
     with:
-      mode: drift
+      mode: maintenance
       root: tf
-      opentofu_version: "1.12.6"

@@ -16,6 +16,7 @@ mise run e2e
 - [Local E2E](.github/workflows/e2e-local.yml) runs the same harness in CI and uploads diagnostic reports.
 - [Reeve Shared E2E](.github/workflows/reeve-shared.yml) exercises the pinned reusable GitOps workflow on disposable live PRs.
 - [Reeve Shared Drift E2E](.github/workflows/reeve-shared-drift.yml) exercises the same workflow in manual drift mode with OpenTofu and filesystem state.
+- [Reeve Shared Maintenance E2E](.github/workflows/reeve-shared-maintenance.yml) exercises the same workflow in manual maintenance mode without installing an IaC engine.
 - Read [E2E setup and limits](e2e/README.md) and [live GitHub identity setup](e2e/github-apps.md).
 - The older live demo workflows require the repository variable `REEVE_LIVE_DEMO=true` and their state/identity setup below.
 
