@@ -218,7 +218,8 @@ func (f *liveFixture) waitChecks() {
 			}
 			s.check(f.controller.call(ctx, "GET", "/commits/"+s.github.head()+"/check-runs?per_page=100&page="+strconv.Itoa(page), nil, &checks))
 			for _, check := range checks.Runs {
-				if check.Name == "gitops" || strings.HasSuffix(check.Name, " / gitops") {
+				if check.Name == "Reeve" || strings.HasSuffix(check.Name, " / Reeve") ||
+					check.Name == "gitops" || strings.HasSuffix(check.Name, " / gitops") {
 					sharedGitOps = true
 				}
 				if check.Status != "completed" {
