@@ -75,8 +75,8 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 - [e2e-local.yml](../.github/workflows/e2e-local.yml) runs on PRs, master pushes, and manual dispatch.
 - It builds the pinned Reeve commit; manual dispatch can select a candidate commit through `reeve-ref`.
 - It grants only `contents: read` and requests no OIDC token or repository secret.
-- CI replaces the demo tool configuration on its disposable checkout with Go/OpenTofu only.
-- Existing live demo workflows are opt-in through `REEVE_LIVE_DEMO=true`; keep them off until their shared state and credentials exist.
+- CI installs only the pinned tools required by the local OpenTofu and Pulumi fixtures.
+- Shared GitOps, drift, and maintenance callers replace the legacy direct-action demo workflows.
 
 ## Boundaries and next layers
 
