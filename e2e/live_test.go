@@ -182,6 +182,11 @@ func (f *liveFixture) commit(source string) {
 	f.contentSHA = result.Content.SHA
 	s.github.edit(func(g *githubState) { g.sha = result.Commit.SHA })
 	s.write(filepath.Join(s.module, "main.tf"), []byte(source), 0600)
+	if f.pr > 0 {
+		ctx, cancel := context.WithTimeout(s.t.Context(), 30*time.Second)
+		defer cancel()
+		s.check(f.controller.waitPRHead(ctx, f.pr, result.Commit.SHA, time.Second))
+	}
 }
 
 func (f *liveFixture) review(event, expected string) {

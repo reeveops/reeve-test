@@ -19,6 +19,13 @@ It MUST use real Reeve gates and real OpenTofu with disposable local state.
 - WHEN the reviewer App requests changes
 - THEN apply MUST remain blocked without engine execution.
 
+#### Scenario: PR metadata lags a commit update
+
+- GIVEN the Contents API has committed a new fixture revision
+- WHEN the PR endpoint still reports the previous head
+- THEN the harness MUST wait for the expected head before running Reeve.
+- The wait MUST time out after 30 seconds and fail on API errors or cancellation.
+
 ### Requirement: Trusted credential boundary
 
 The live workflow MUST run only on manually selected trusted master code.

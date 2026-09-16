@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -62,6 +63,32 @@ func (a *liveAPI) call(ctx context.Context, method, suffix string, body, result 
 		return nil
 	}
 	return json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(result)
+}
+
+// waitPRHead waits for GitHub's PR metadata to reflect the committed branch update.
+func (a *liveAPI) waitPRHead(ctx context.Context, pr int, sha string, interval time.Duration) error {
+	for {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("wait for PR #%d head: %w", pr, err)
+		}
+		var result struct{ Head struct{ SHA string } }
+		if err := a.call(ctx, http.MethodGet, fmt.Sprintf("/pulls/%d", pr), nil, &result); err != nil {
+			if ctx.Err() != nil {
+				return fmt.Errorf("wait for PR #%d head: %w", pr, ctx.Err())
+			}
+			return err
+		}
+		if result.Head.SHA == sha {
+			return nil
+		}
+		timer := time.NewTimer(interval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("wait for PR #%d head: %w", pr, ctx.Err())
+		case <-timer.C:
+		}
+	}
 }
 
 type liveRelay struct {
@@ -194,6 +221,58 @@ func TestLiveRelay(t *testing.T) {
 			}
 			if tc.forwarded && w.Body.String() != `{"message":"fixture outage"}` {
 				t.Fatal("Relay changed upstream error")
+			}
+		})
+	}
+}
+
+func TestWaitPRHead(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		staleReads   int32
+		status       int
+		cancelOnRead bool
+		wantReads    int32
+		wantError    bool
+	}{
+		{name: "already-current", status: 200, wantReads: 1},
+		{name: "stale-until-third-read", staleReads: 2, status: 200, wantReads: 3},
+		{name: "api-denial", status: 403, wantReads: 1, wantError: true},
+		{name: "cancel-stale-head", staleReads: 100, status: 200, cancelOnRead: true, wantReads: 1, wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			var reads atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || r.URL.Path != "/repos/"+repository+"/pulls/12" {
+					t.Errorf("Unexpected PR lookup: %s %s", r.Method, r.URL.Path)
+				}
+				sha := "new-head"
+				if reads.Add(1) <= tc.staleReads {
+					sha = "old-head"
+				}
+				w.WriteHeader(tc.status)
+				if err := json.NewEncoder(w).Encode(object{"head": object{"sha": sha}}); err != nil {
+					t.Error(err)
+				}
+				if tc.cancelOnRead {
+					cancel()
+				}
+			}))
+			defer server.Close()
+			a := newLiveAPI(repository, dummyToken)
+			a.base = server.URL
+			err := a.waitPRHead(ctx, 12, "new-head", time.Millisecond)
+			if (err != nil) != tc.wantError {
+				t.Fatalf("Unexpected wait result: %v", err)
+			}
+			if tc.cancelOnRead && !errors.Is(err, context.Canceled) {
+				t.Fatalf("Expected cancellation, got %v", err)
+			}
+			if reads.Load() != tc.wantReads {
+				t.Fatalf("reads=%d, want %d", reads.Load(), tc.wantReads)
 			}
 		})
 	}
