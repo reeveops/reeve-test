@@ -391,7 +391,15 @@ func (s *suite) apply(label string, failed bool) {
 	if failed {
 		exit, status, outcome = 1, "error", "failed"
 	}
+	requestKey := "GET /repos/" + repository + "/issues/1/comments"
+	commentReadsBefore := 0
+	s.github.edit(func(g *githubState) { commentReadsBefore = g.requests[requestKey] })
 	m, r := s.run(label, "apply", exit)
+	commentReadsAfter := 0
+	s.github.edit(func(g *githubState) { commentReadsAfter = g.requests[requestKey] })
+	s.require(commentReadsAfter-commentReadsBefore == 1,
+		"%s: apply fetched the PR comment history %d times, expected one coherent snapshot",
+		label, commentReadsAfter-commentReadsBefore)
 	stack := s.stack(m)
 	s.require(stack.Status == status, "%s: unexpected apply status %s", label, stack.Status)
 	applied := false
