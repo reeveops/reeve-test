@@ -43,10 +43,11 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 | Apply concurrency | A process that outlives the lock TTL keeps its lease through heartbeats; a concurrent run of the same PR stays out of the engine. |
 | Lock queue | Three PRs contend for one stack, preserve FIFO order, adopt promoted reservations, and leave no queue entries. |
 | Lock recovery | An expired holder is evicted during acquisition; SIGTERM releases a live lock and persists a failed manifest and audit record. |
+| Maintenance | A real sweep promotes expired queues, prunes only old artifacts, isolates malformed locks, and performs no writes on a second no-op run. |
 | Saved plans | Preview artifact exists; successful apply executes it without re-planning. |
 | Plan modes | Locking off re-plans; missing artifacts fall back; stale plans fail closed. |
 | Refresh | Dry-run and writing refreshes plus apply-with-refresh use the intended engine modes. |
-| Rerun identity | Every CLI path receives a run attempt and resolves the attempt-aware artifact identity after authoritative PR-head lookup. |
+| Rerun identity | Two attempts keep distinct manifests and plans; apply selects the newer snapshot, and apply/refresh retain attempt 2 after authoritative head lookup. |
 | Pulumi | Local-backend create, no-op, refresh, delete, and saved-plan apply. |
 | Approvals | Missing, self, unlisted, stale, and changes-requested reviews deny apply. |
 | Changed commit | Previous-head approval stops counting on a new head. |
