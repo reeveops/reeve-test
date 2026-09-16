@@ -134,9 +134,15 @@ providers:
 	}()
 
 	s.newHead("docs-only-no-auth")
+	requestKey := "GET /repos/" + repository + "/pulls/1"
+	prReadsBefore := 0
+	s.github.edit(func(g *githubState) { prReadsBefore = g.requests[requestKey] })
 	m, r := s.run("docs-only-no-auth", "preview", 0)
 	s.require(m != nil && len(m.Stacks) == 0, "Docs-only preview did not persist an empty manifest")
 	s.require(len(r.EngineCommands) == 0, "Docs-only preview invoked the engine: %v", r.EngineCommands)
+	prReadsAfter := 0
+	s.github.edit(func(g *githubState) { prReadsAfter = g.requests[requestKey] })
+	s.require(prReadsAfter-prReadsBefore == 1, "Preview fetched PR metadata %d times, expected one coherent snapshot", prReadsAfter-prReadsBefore)
 }
 
 func (s *suite) resources() []any {
