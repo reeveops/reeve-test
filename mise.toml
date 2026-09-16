@@ -65,6 +65,15 @@ bash -n e2e/bootstrap/configure-github.sh
 """
 description = "Initialize and validate the disposable cloud contract infrastructure"
 
+[tasks."blob:s3-local"]
+tools = { go = "1.26.6", minio = "2025.10.15.17.29.55" }
+run = "bash e2e/run-local-s3-contract.sh"
+description = "Run the Reeve S3 adapter contract against disposable local MinIO"
+
+[tasks."e2e:scripts"]
+run = "bash -n e2e/run-local-s3-contract.sh e2e/bootstrap/configure-github.sh"
+description = "Validate E2E shell scripts"
+
 # ── reeve against the fixture ──────────────────────────────────────────
 
 [tasks.lint]
@@ -130,7 +139,7 @@ go vet ./...
 description = "Bump Go toolchain + all deps to latest, tidy, and vet"
 
 [tasks.check]
-depends = ["fmt", "vet", "lint", "stacks", "tf-lint", "tf-stacks"]
+depends = ["fmt", "vet", "lint", "stacks", "tf-lint", "tf-stacks", "e2e:scripts"]
 description = "Format, vet, and validate both fixture roots - run before pushing"
 
 # ── maintenance ────────────────────────────────────────────────────────
