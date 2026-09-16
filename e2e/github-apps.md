@@ -15,6 +15,7 @@
 | `E2E_REVIEWER_PRIVATE_KEY` | Secret |
 
 - Repository settings or organization settings granted to `reeve-test` work with the workflow.
+- The configured Apps use organization settings shared with `reeve` and `reeve-test`; token minting remains scoped to `reeve-test`.
 - Environment-scoped settings need that environment added to the live job before dispatch.
 - Open Actions, select **Live GitHub E2E**, and run the workflow from `master`.
 - The job builds its pinned source before minting tokens and discovers App logins from the token action.
