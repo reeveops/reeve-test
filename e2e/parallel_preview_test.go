@@ -86,6 +86,35 @@ engine:
 	}
 	s.require(overlapped, "Independent project plans did not overlap: %v", starts)
 	s.require(apiGap >= 900*time.Millisecond, "Same-directory API plans overlapped; start gap was %s", apiGap)
+
+	s.write(wrapper, []byte(partialFailureWrapper(s.trace, s.engine)), 0o700)
+	s.newHead("parallel-preview-partial-failure")
+	partial, result := s.run("parallel-preview-partial-failure", "preview", 1)
+	s.require(partial != nil && len(partial.Stacks) == 4,
+		"Partial-failure preview returned an incomplete manifest: %+v", partial)
+	statuses := map[string]int{}
+	for _, stack := range partial.Stacks {
+		statuses[stack.Status]++
+	}
+	s.require(statuses["error"] == 1 && statuses["planned"] == 3,
+		"Partial-failure preview statuses = %v, want one error and three planned", statuses)
+	planCommands := 0
+	for _, command := range result.EngineCommands {
+		if strings.HasPrefix(command, "plan ") {
+			planCommands++
+		}
+	}
+	s.require(planCommands == 4, "Partial-failure preview ran %d plans, want 4", planCommands)
+	reported := false
+	s.github.edit(func(g *githubState) {
+		for _, comment := range g.comments {
+			body, _ := comment["body"].(string)
+			if strings.Contains(body, "simulated-parallel-e2e-failure") {
+				reported = true
+			}
+		}
+	})
+	s.require(reported, "Partial-failure preview did not report the failing stack")
 }
 
 func parallelWrapper(trace, engine string) string {
@@ -94,6 +123,16 @@ func parallelWrapper(trace, engine string) string {
 		"if [ \"${1:-}\" = plan ]; then\n" +
 		"  printf 'PLAN_START|%s|%s\\n' \"$PWD\" \"$(date +%s%N)\" >> " + shellQuote(trace) + "\n" +
 		"  sleep 1\n" +
+		"fi\n" +
+		"exec " + shellQuote(engine) + " \"$@\"\n"
+}
+
+func partialFailureWrapper(trace, engine string) string {
+	return "#!/bin/sh\nset -eu\n" +
+		"printf '%s\\n' \"$*\" >> " + shellQuote(trace) + "\n" +
+		"if [ \"${1:-}\" = plan ] && [ \"$(basename \"$PWD\")\" = worker ]; then\n" +
+		"  printf 'simulated-parallel-e2e-failure\\n' >&2\n" +
+		"  exit 1\n" +
 		"fi\n" +
 		"exec " + shellQuote(engine) + " \"$@\"\n"
 }

@@ -45,6 +45,7 @@ func TestLifecycle(t *testing.T) {
 	s.require(len(r.EngineCommands) == 0 && reflect.DeepEqual(s.state(), before), "Approval outage did not fail closed")
 	s.require(!s.appliedMarker(), "Approval outage wrote an applied marker")
 	s.github.edit(func(g *githubState) { g.reviewError = false })
+	s.blockedByFreeze()
 	s.apply("create-apply", false)
 	s.require(len(s.resources()) == 1, "Create did not persist a resource")
 
@@ -109,7 +110,23 @@ resource "terraform_data" "fails" {
 	m, _ := s.run("failed-preview", "preview", 1)
 	s.require(s.stack(m).Status == "error", "Failed preview was not persisted")
 	s.require(!s.appliedMarker(), "Failed preview wrote an applied marker")
-	s.require(len(s.results) == 25, "Expected 25 command scenarios, got %d", len(s.results))
+	s.require(len(s.results) == 26, "Expected 26 command scenarios, got %d", len(s.results))
+}
+
+func (s *suite) blockedByFreeze() {
+	s.t.Helper()
+	sharedPath := filepath.Join(s.root, ".reeve", "shared.yaml")
+	original := s.read(sharedPath)
+	configured := string(original) + `
+freeze_windows:
+  - name: continuous-e2e-freeze
+    cron: "* * * * *"
+    duration: 2m
+    stacks: ["lifecycle/*"]
+`
+	s.write(sharedPath, []byte(configured), 0600)
+	defer s.write(sharedPath, original, 0600)
+	s.blocked("freeze-window", "not_in_freeze")
 }
 
 func (s *suite) noOpPreviewSkipsStateAuth() {

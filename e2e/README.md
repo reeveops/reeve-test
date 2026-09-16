@@ -39,8 +39,8 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 
 | Area | Assertions |
 | --- | --- |
-| Lifecycle | Create, update, delete, and converged no-op through separate CLI processes. |
-| Preview concurrency | Independent OpenTofu projects overlap while workspaces sharing one directory stay serial. |
+| Lifecycle | Create, update, replace, delete, and converged no-op through separate CLI processes. |
+| Preview concurrency | Independent OpenTofu projects overlap while workspaces sharing one directory stay serial; one failed stack does not hide three successful stack results. |
 | Apply concurrency | A process that outlives the lock TTL keeps its lease through heartbeats; a concurrent run of the same PR stays out of the engine. |
 | Lock queue | Three PRs contend for one stack, preserve FIFO order, adopt promoted reservations, and leave no queue entries. |
 | Lock recovery | An expired holder is evicted during acquisition; SIGTERM releases a live lock and persists a failed manifest and audit record. |
@@ -50,11 +50,11 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 | Plan modes | Locking off re-plans; missing artifacts fall back; stale plans fail closed. |
 | Refresh | Dry-run and writing refreshes plus apply-with-refresh use the intended engine modes. |
 | Rerun identity | Two attempts keep distinct manifests and plans; apply selects the newer snapshot, and apply/refresh retain attempt 2 after authoritative head lookup. |
-| Terraform | Separate create, update, no-op, delete, and saved-plan apply through the public CLI. |
+| Terraform | Separate create, update, forced replacement, no-op, delete, and saved-plan apply through the public CLI. |
 | Pulumi | Local-backend create, no-op, refresh, delete, and saved-plan apply. |
 | Approvals | Missing, self, unlisted, stale, and changes-requested reviews deny apply. |
 | Changed commit | Previous-head approval stops counting on a new head. |
-| Other gates | Failing checks, behind-base, draft, and fork classifications deny apply. |
+| Other gates | Active freeze windows, failing checks, behind-base, draft, and fork classifications deny apply. |
 | API failure | Review-read failure exits nonzero and never invokes engine apply. |
 | Idempotency | A repeated apply of the same head does not invoke the engine or change state. |
 | Failure reporting | Failed preview/apply persists failure artifacts and updates simulated PR comments. |

@@ -41,6 +41,18 @@ func TestTerraformLifecycle(t *testing.T) {
 	s.require(state.Resources[0].Instances[0].Attributes.Input.Value == "updated",
 		"Terraform resource input was not updated")
 
+	s.newHead("terraform-replace")
+	s.write(source, []byte(`terraform {}
+
+resource "terraform_data" "item" {
+  input            = "replaced"
+  triggers_replace = "force-v1"
+}
+`), 0600)
+	s.preview("terraform-replace-preview", counts{Replace: 1})
+	s.github.approve("", "", "")
+	s.apply("terraform-replace-apply", false)
+
 	s.newHead("terraform-delete")
 	s.write(source, []byte("terraform {}\n"), 0600)
 	s.preview("terraform-delete-preview", counts{Delete: 1})
@@ -49,5 +61,5 @@ func TestTerraformLifecycle(t *testing.T) {
 	s.require(len(s.resources()) == 0, "Terraform delete left managed resources")
 	s.preview("terraform-delete-converged", counts{})
 
-	s.require(len(s.results) == 8, "Expected 8 Terraform command scenarios, got %d", len(s.results))
+	s.require(len(s.results) == 10, "Expected 10 Terraform command scenarios, got %d", len(s.results))
 }
