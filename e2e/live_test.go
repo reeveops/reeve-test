@@ -43,6 +43,10 @@ type liveFixture struct {
 	closed, deleted                   bool
 }
 
+type liveCheck struct {
+	Name, Status, Conclusion string
+}
+
 const liveFixturePath = "tf/envs/lifecycle/main.tf"
 
 func TestLiveGitHub(t *testing.T) {
@@ -100,7 +104,11 @@ func TestLiveGitHub(t *testing.T) {
 	s.preview("live-create-converged", counts{})
 
 	source := filepath.Join(s.module, "main.tf")
-	f.commit(strings.ReplaceAll(string(s.read(source)), `"initial"`, `"updated"`))
+	baseSource := string(s.read(source))
+	supersededSHA := f.commit(strings.ReplaceAll(baseSource, `"initial"`, `"superseded"`))
+	f.waitReeveCheckStarted(supersededSHA)
+	f.commit(strings.ReplaceAll(baseSource, `"initial"`, `"updated"`))
+	f.waitReeveCheckConclusion(supersededSHA, "cancelled")
 	f.waitChecks()
 	s.preview("live-update-preview", counts{Change: 1})
 	s.blocked("live-stale-approval", "approvals")
@@ -169,7 +177,7 @@ func (f *liveFixture) create() {
 	s.t.Logf("Fixture PR: %s", pr.HTMLURL)
 }
 
-func (f *liveFixture) commit(source string) {
+func (f *liveFixture) commit(source string) string {
 	s := f.s
 	body := object{"message": "test: advance disposable Reeve fixture", "branch": f.branch, "content": base64.StdEncoding.EncodeToString([]byte(source))}
 	if f.contentSHA != "" {
@@ -189,6 +197,7 @@ func (f *liveFixture) commit(source string) {
 		defer cancel()
 		s.check(f.controller.waitPRHead(ctx, f.pr, result.Commit.SHA, time.Second))
 	}
+	return result.Commit.SHA
 }
 
 func (f *liveFixture) review(event, expected string) {
@@ -211,26 +220,15 @@ func (f *liveFixture) waitChecks() {
 	defer cancel()
 	for {
 		ready, sharedGitOps := true, false
-		for page := 1; ; page++ {
-			var checks struct {
-				Total int                                         `json:"total_count"`
-				Runs  []struct{ Name, Status, Conclusion string } `json:"check_runs"`
+		for _, check := range f.checkRuns(ctx, s.github.head()) {
+			if isSharedGitOpsCheck(check.Name) {
+				sharedGitOps = true
 			}
-			s.check(f.controller.call(ctx, "GET", "/commits/"+s.github.head()+"/check-runs?per_page=100&page="+strconv.Itoa(page), nil, &checks))
-			for _, check := range checks.Runs {
-				if check.Name == "Reeve" || strings.HasSuffix(check.Name, " / Reeve") ||
-					check.Name == "gitops" || strings.HasSuffix(check.Name, " / gitops") {
-					sharedGitOps = true
-				}
-				if check.Status != "completed" {
-					ready = false
-					continue
-				}
-				s.require(check.Conclusion == "success" || check.Conclusion == "skipped" || check.Conclusion == "neutral", "Fixture check %s concluded %s", check.Name, check.Conclusion)
+			if check.Status != "completed" {
+				ready = false
+				continue
 			}
-			if page*100 >= checks.Total {
-				break
-			}
+			s.require(check.Conclusion == "success" || check.Conclusion == "skipped" || check.Conclusion == "neutral", "Fixture check %s concluded %s", check.Name, check.Conclusion)
 		}
 		if ready && sharedGitOps {
 			return
@@ -239,6 +237,66 @@ func (f *liveFixture) waitChecks() {
 		case <-ctx.Done():
 			s.require(false, "Timed out waiting for fixture checks")
 		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
+func (f *liveFixture) checkRuns(ctx context.Context, sha string) []liveCheck {
+	f.s.t.Helper()
+	all := []liveCheck{}
+	for page := 1; ; page++ {
+		var checks struct {
+			Total int         `json:"total_count"`
+			Runs  []liveCheck `json:"check_runs"`
+		}
+		f.s.check(f.controller.call(ctx, "GET", "/commits/"+sha+"/check-runs?per_page=100&page="+strconv.Itoa(page), nil, &checks))
+		all = append(all, checks.Runs...)
+		if page*100 >= checks.Total {
+			return all
+		}
+	}
+}
+
+func isSharedGitOpsCheck(name string) bool {
+	return name == "Reeve" || strings.HasSuffix(name, " / Reeve") ||
+		name == "gitops" || strings.HasSuffix(name, " / gitops")
+}
+
+func (f *liveFixture) waitReeveCheckStarted(sha string) {
+	f.s.t.Helper()
+	ctx, cancel := context.WithTimeout(f.s.t.Context(), 2*time.Minute)
+	defer cancel()
+	for {
+		for _, check := range f.checkRuns(ctx, sha) {
+			if !isSharedGitOpsCheck(check.Name) {
+				continue
+			}
+			f.s.require(check.Status != "completed", "Superseded Reeve check completed before cancellation could be exercised")
+			return
+		}
+		select {
+		case <-ctx.Done():
+			f.s.require(false, "Timed out waiting for superseded Reeve check to start")
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+}
+
+func (f *liveFixture) waitReeveCheckConclusion(sha, want string) {
+	f.s.t.Helper()
+	ctx, cancel := context.WithTimeout(f.s.t.Context(), 2*time.Minute)
+	defer cancel()
+	for {
+		for _, check := range f.checkRuns(ctx, sha) {
+			if isSharedGitOpsCheck(check.Name) && check.Status == "completed" {
+				f.s.require(check.Conclusion == want, "Superseded Reeve check concluded %s, want %s", check.Conclusion, want)
+				return
+			}
+		}
+		select {
+		case <-ctx.Done():
+			f.s.require(false, "Timed out waiting for superseded Reeve check conclusion")
+		case <-time.After(500 * time.Millisecond):
 		}
 	}
 }
