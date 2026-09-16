@@ -1,7 +1,8 @@
 # Local E2E
 
-- Run the real Reeve CLI and OpenTofu against a loopback GitHub REST fixture.
+- Run the real Reeve CLI, OpenTofu, and Pulumi against a loopback GitHub REST fixture.
 - OpenTofu uses the built-in `terraform_data` resource and local engine state.
+- Pulumi uses component resources, a prebuilt Go program, and a disposable local backend.
 - Reeve uses a separate filesystem bucket; both stores survive the scenario's commands and are deleted at completion.
 
 ## Run
@@ -14,7 +15,7 @@ mise run e2e
 
 - This builds the sibling `../reeve` checkout with that repository's Go toolchain.
 - The harness uses Go's standard library and runs with `go test -race -tags=e2e`; ordinary Go tests do not require the E2E binaries.
-- The harness uses OpenTofu 1.12.6 and does not initialize or change the existing Pulumi/Tofu demo state.
+- The harness uses OpenTofu 1.12.6 and Pulumi 3.262.0 without changing the existing demo state.
 - Initial tool installation and building need network access; the built-in resource requires no provider download.
 
 To test an already-built candidate:
@@ -40,6 +41,9 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 | Lifecycle | Create, update, delete, and converged no-op through separate CLI processes. |
 | Preview concurrency | Independent OpenTofu projects overlap while workspaces sharing one directory stay serial. |
 | Saved plans | Preview artifact exists; successful apply executes it without re-planning. |
+| Plan modes | Locking off re-plans; missing artifacts fall back; stale plans fail closed. |
+| Refresh | Dry-run and writing refreshes plus apply-with-refresh use the intended engine modes. |
+| Pulumi | Local-backend create, no-op, refresh, delete, and saved-plan apply. |
 | Approvals | Missing, self, unlisted, stale, and changes-requested reviews deny apply. |
 | Changed commit | Previous-head approval stops counting on a new head. |
 | Other gates | Failing checks, behind-base, draft, and fork classifications deny apply. |
@@ -73,7 +77,7 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 - This suite covers the public Reeve CLI, real engine, real filesystem adapter, and simulated GitHub REST responses.
 - It does not execute the composite action, real webhook routing, actual GitHub reviews, or cloud SDK storage calls.
 - [Live GitHub identity tests](github-apps.md) have a separate manual workflow with two Apps and a filesystem bucket in one job.
-- Follow with Pulumi local-backend coverage, action routing tests, and concurrent processes/heartbeat tests.
+- Follow with action routing tests and concurrent processes/heartbeat tests.
 - Add AWS/GCP/R2 blob contract lanes after those local checks; a blob lane is separate from the engine's workload provider.
 - Separate GitHub events need storage shared across runners; an in-job filesystem cannot provide that.
 - `reeve` branch `feat/live-integration-harness` currently adds only `checkout-pr-head: false`; this CLI harness does not need that option.

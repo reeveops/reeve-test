@@ -25,6 +25,7 @@ import (
 var (
 	reeveFlag  = flag.String("reeve", "../reeve/bin/reeve", "Reeve binary, relative to repository root")
 	engineFlag = flag.String("engine", "tofu", "OpenTofu executable or path relative to repository root")
+	pulumiFlag = flag.String("pulumi", "pulumi", "Pulumi executable or path relative to repository root")
 	reportFlag = flag.String("report-dir", "", "New report directory, relative to repository root")
 )
 
@@ -248,6 +249,10 @@ func (s *suite) newHead(label string) {
 }
 
 func (s *suite) run(label, command string, expected int) (*manifest, record) {
+	return s.runArgs(label, command, expected)
+}
+
+func (s *suite) runArgs(label, command string, expected int, extra ...string) (*manifest, record) {
 	s.t.Helper()
 	prRequestKey := fmt.Sprintf("GET /repos/%s/pulls/%d", s.repo, s.pr)
 	prReadsBefore := 0
@@ -262,9 +267,13 @@ func (s *suite) run(label, command string, expected int) (*manifest, record) {
 	}
 	r := record{Scenario: label, RunID: fmt.Sprintf("%s-%d-%s", prefix, sequence, sha[:7]), Log: fmt.Sprintf("%02d-%s.log", sequence, label)}
 	args := []string{"run", command, "--root", s.root, "--repo", s.repo, "--pr", strconv.Itoa(s.pr), "--sha", sha, "--run-number", strconv.Itoa(sequence)}
-	if command == "apply" {
-		args = append(args, "--actor", s.actor, "--trigger-source", "comment")
+	if command == "apply" || command == "refresh" {
+		args = append(args, "--actor", s.actor)
 	}
+	if command == "apply" {
+		args = append(args, "--trigger-source", "comment")
+	}
+	args = append(args, extra...)
 	before := len(s.commands())
 	ctx, cancel := context.WithTimeout(s.t.Context(), 120*time.Second)
 	defer cancel()
