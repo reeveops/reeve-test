@@ -65,6 +65,48 @@ bash -n e2e/bootstrap/configure-github.sh
 """
 description = "Initialize and validate the disposable cloud contract infrastructure"
 
+[tasks."cloud:apply:aws"]
+tools = { opentofu = "1.12.6" }
+run = """
+set -eu
+: "${E2E_AWS_REGION:?set E2E_AWS_REGION}"
+: "${E2E_S3_BUCKET:?set E2E_S3_BUCKET to a globally unique name}"
+tofu -chdir=e2e/bootstrap/aws init -input=false
+tofu -chdir=e2e/bootstrap/aws apply \
+  -var="region=$E2E_AWS_REGION" \
+  -var="bucket_name=$E2E_S3_BUCKET"
+bash e2e/bootstrap/configure-github.sh aws "${E2E_GITHUB_REPOSITORY:-reeveops/reeve-test}"
+"""
+description = "Create the disposable AWS contract resources and configure GitHub variables"
+
+[tasks."cloud:apply:gcp"]
+tools = { opentofu = "1.12.6" }
+run = """
+set -eu
+: "${E2E_GCP_PROJECT_ID:?set E2E_GCP_PROJECT_ID}"
+: "${E2E_GCS_BUCKET:?set E2E_GCS_BUCKET to a globally unique name}"
+tofu -chdir=e2e/bootstrap/gcp init -input=false
+tofu -chdir=e2e/bootstrap/gcp apply \
+  -var="project_id=$E2E_GCP_PROJECT_ID" \
+  -var="bucket_name=$E2E_GCS_BUCKET"
+bash e2e/bootstrap/configure-github.sh gcp "${E2E_GITHUB_REPOSITORY:-reeveops/reeve-test}"
+"""
+description = "Create the disposable GCP contract resources and configure GitHub variables"
+
+[tasks."cloud:configure"]
+tools = { opentofu = "1.12.6" }
+run = "bash e2e/bootstrap/configure-github.sh \"${E2E_CLOUD_BACKEND:-all}\" \"${E2E_GITHUB_REPOSITORY:-reeveops/reeve-test}\""
+description = "Refresh GitHub variables from existing AWS/GCP bootstrap outputs"
+
+[tasks."cloud:run"]
+run = """
+gh workflow run cloud-blob-contract.yml \
+  --repo "${E2E_GITHUB_REPOSITORY:-reeveops/reeve-test}" \
+  -f backend="${E2E_CLOUD_BACKEND:-all}" \
+  -f reeve-ref="${E2E_REEVE_REF:-9cf21fa3de74c5c877ac72630e76e76fa12479ac}"
+"""
+description = "Dispatch the configured real AWS/GCP blob contract"
+
 [tasks."blob:s3-local"]
 tools = { go = "1.26.6", minio = "2025.10.15.17.29.55" }
 run = "bash e2e/run-local-s3-contract.sh"

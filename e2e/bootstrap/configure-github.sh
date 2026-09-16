@@ -16,6 +16,10 @@ set_variable() {
 }
 
 case "$backend" in
+  all)
+    "$0" aws "$repository"
+    "$0" gcp "$repository"
+    ;;
   aws)
     root="$script_dir/aws"
     set_variable E2E_AWS_ROLE_ARN "$root" github_role_arn
@@ -29,7 +33,7 @@ case "$backend" in
     set_variable E2E_GCS_BUCKET "$root" bucket_name
     ;;
   *)
-    printf 'usage: %s aws|gcp [owner/repository]\n' "$0" >&2
+    printf 'usage: %s all|aws|gcp [owner/repository]\n' "$0" >&2
     exit 2
     ;;
 esac

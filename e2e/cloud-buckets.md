@@ -2,7 +2,7 @@
 
 The manual `Cloud Blob Contract` workflow runs the provider-neutral storage contract against real AWS S3 and Google Cloud Storage buckets. It uses GitHub OIDC federation and stores no cloud credential in GitHub.
 
-Use the checked-in [OpenTofu bootstrap](bootstrap/README.md) to create either backend and populate its repository variables. The details below describe the access boundary enforced by those roots.
+Use the checked-in [OpenTofu bootstrap](bootstrap/README.md) to create either backend and populate its repository variables. Its `mise` tasks keep bootstrap, variable configuration, and workflow dispatch to one command each.
 
 ## AWS
 
