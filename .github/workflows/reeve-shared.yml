@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   reeve:
-    uses: reeveops/reeve/.github/workflows/reeve.yml@bee1be07e0f13fd71118232a7558f8dad51df739
+    uses: reeveops/reeve/.github/workflows/reeve.yml@13b065f2c862745869cc657d9e872de049eece7d
     with:
       mode: gitops
       root: tf
