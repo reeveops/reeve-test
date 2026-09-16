@@ -17,6 +17,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -28,6 +29,11 @@ var (
 	pulumiFlag = flag.String("pulumi", "pulumi", "Pulumi executable or path relative to repository root")
 	reportFlag = flag.String("report-dir", "", "New report directory, relative to repository root")
 )
+
+var reportRoots = struct {
+	sync.Mutex
+	created map[string]bool
+}{created: map[string]bool{}}
 
 type counts struct{ Add, Change, Delete, Replace int }
 type gate struct{ Gate, Outcome string }
@@ -135,12 +141,14 @@ func newSuiteInReport(t *testing.T, reportSubdir string) *suite {
 	if report == "" {
 		report = filepath.Join(".local", "e2e", time.Now().UTC().Format("20060102T150405.000000000Z"))
 	}
-	s.report = absolute(repoRoot, report)
+	reportRoot := absolute(repoRoot, report)
+	s.check(os.MkdirAll(filepath.Dir(reportRoot), 0700))
+	s.check(createReportRoot(reportRoot))
+	s.report = reportRoot
 	if reportSubdir != "" {
-		s.report = filepath.Join(s.report, reportSubdir)
+		s.report = filepath.Join(reportRoot, reportSubdir)
+		s.check(os.Mkdir(s.report, 0700))
 	}
-	s.check(os.MkdirAll(filepath.Dir(s.report), 0700))
-	s.check(os.Mkdir(s.report, 0700))
 	s.root = t.TempDir()
 	server := httptest.NewServer(s.github)
 	t.Cleanup(s.saveReport)
@@ -183,6 +191,19 @@ engine:
 	}
 	t.Logf("Reeve: %s\nOpenTofu: %s\nReports: %s", s.reeve, s.engine, s.report)
 	return s
+}
+
+func createReportRoot(path string) error {
+	reportRoots.Lock()
+	defer reportRoots.Unlock()
+	if reportRoots.created[path] {
+		return nil
+	}
+	if err := os.Mkdir(path, 0700); err != nil {
+		return err
+	}
+	reportRoots.created[path] = true
+	return nil
 }
 
 func (s *suite) saveReport() {

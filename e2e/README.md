@@ -40,6 +40,7 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 | --- | --- |
 | Lifecycle | Create, update, delete, and converged no-op through separate CLI processes. |
 | Preview concurrency | Independent OpenTofu projects overlap while workspaces sharing one directory stay serial. |
+| Apply concurrency | A process that outlives the lock TTL keeps its lease through heartbeats; a concurrent run stays blocked and never reaches the engine. |
 | Saved plans | Preview artifact exists; successful apply executes it without re-planning. |
 | Plan modes | Locking off re-plans; missing artifacts fall back; stale plans fail closed. |
 | Refresh | Dry-run and writing refreshes plus apply-with-refresh use the intended engine modes. |
