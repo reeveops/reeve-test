@@ -40,7 +40,9 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 | --- | --- |
 | Lifecycle | Create, update, delete, and converged no-op through separate CLI processes. |
 | Preview concurrency | Independent OpenTofu projects overlap while workspaces sharing one directory stay serial. |
-| Apply concurrency | A process that outlives the lock TTL keeps its lease through heartbeats; a concurrent run stays blocked and never reaches the engine. |
+| Apply concurrency | A process that outlives the lock TTL keeps its lease through heartbeats; a concurrent run of the same PR stays out of the engine. |
+| Lock queue | Three PRs contend for one stack, preserve FIFO order, adopt promoted reservations, and leave no queue entries. |
+| Lock recovery | An expired holder is evicted during acquisition; SIGTERM releases a live lock and persists a failed manifest and audit record. |
 | Saved plans | Preview artifact exists; successful apply executes it without re-planning. |
 | Plan modes | Locking off re-plans; missing artifacts fall back; stale plans fail closed. |
 | Refresh | Dry-run and writing refreshes plus apply-with-refresh use the intended engine modes. |
@@ -79,7 +81,7 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 - This suite covers the public Reeve CLI, real engine, real filesystem adapter, and simulated GitHub REST responses.
 - It does not execute the composite action, real webhook routing, actual GitHub reviews, or cloud SDK storage calls.
 - [Live GitHub identity tests](github-apps.md) have a separate manual workflow with two Apps and a filesystem bucket in one job.
-- Follow with action routing tests and concurrent processes/heartbeat tests.
+- Action routing remains covered separately by workflow tests; this suite owns concurrent process, heartbeat, queue, and cancellation behavior.
 - Add AWS/GCP/R2 blob contract lanes after those local checks; a blob lane is separate from the engine's workload provider.
 - Separate GitHub events need storage shared across runners; an in-job filesystem cannot provide that.
 - `reeve` branch `feat/live-integration-harness` currently adds only `checkout-pr-head: false`; this CLI harness does not need that option.

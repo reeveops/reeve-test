@@ -105,26 +105,42 @@ func (g *githubFixture) route(method, path string, body object) (int, any) {
 	s.requests[method+" "+path]++
 	prefix := "/repos/" + repository
 	if method == http.MethodGet {
+		for pr := 1; pr <= 3; pr++ {
+			switch path {
+			case fmt.Sprintf("%s/pulls/%d", prefix, pr):
+				headRepo := repository
+				if s.fork {
+					headRepo = "outside/fork"
+				}
+				return 200, object{
+					"number": pr, "title": "Local E2E fixture", "state": "open",
+					"user": object{"login": author, "type": "Bot"}, "draft": s.draft,
+					"created_at": time.Now().UTC().Format(time.RFC3339), "html_url": fmt.Sprintf("http://127.0.0.1/pr/%d", pr),
+					"head": object{"sha": s.sha, "ref": "e2e", "repo": object{"full_name": headRepo}},
+					"base": object{"sha": strings.Repeat("b", 40), "ref": "master", "repo": object{"full_name": repository, "private": false}},
+				}
+			case fmt.Sprintf("%s/pulls/%d/files", prefix, pr):
+				return 200, []object{{"filename": s.changed, "status": "modified"}}
+			case fmt.Sprintf("%s/pulls/%d/reviews", prefix, pr):
+				if s.reviewError {
+					return 503, object{"message": "simulated review outage"}
+				}
+				return 200, s.reviews
+			case fmt.Sprintf("%s/issues/%d/comments", prefix, pr):
+				comments := make([]object, 0, len(s.comments))
+				for _, comment := range s.comments {
+					issue, ok := comment["issue_number"].(int)
+					if !ok {
+						issue = 1
+					}
+					if issue == pr {
+						comments = append(comments, comment)
+					}
+				}
+				return 200, comments
+			}
+		}
 		switch path {
-		case prefix + "/pulls/1":
-			headRepo := repository
-			if s.fork {
-				headRepo = "outside/fork"
-			}
-			return 200, object{
-				"number": 1, "title": "Local E2E fixture", "state": "open",
-				"user": object{"login": author, "type": "Bot"}, "draft": s.draft,
-				"created_at": time.Now().UTC().Format(time.RFC3339), "html_url": "http://127.0.0.1/pr/1",
-				"head": object{"sha": s.sha, "ref": "e2e", "repo": object{"full_name": headRepo}},
-				"base": object{"sha": strings.Repeat("b", 40), "ref": "master", "repo": object{"full_name": repository, "private": false}},
-			}
-		case prefix + "/pulls/1/files":
-			return 200, []object{{"filename": s.changed, "status": "modified"}}
-		case prefix + "/pulls/1/reviews":
-			if s.reviewError {
-				return 503, object{"message": "simulated review outage"}
-			}
-			return 200, s.reviews
 		case prefix + "/commits/" + s.sha + "/check-runs":
 			return 200, object{"total_count": 1, "check_runs": []object{{
 				"id": 1, "name": "fixture-required-check", "status": "completed", "conclusion": s.check,
@@ -135,16 +151,18 @@ func (g *githubFixture) route(method, path string, body object) (int, any) {
 			return 200, object{"behind_by": s.behind}
 		case prefix + "/contents/.github/CODEOWNERS", prefix + "/contents/CODEOWNERS", prefix + "/contents/docs/CODEOWNERS":
 			return 404, object{"message": "Not Found"}
-		case prefix + "/issues/1/comments":
-			return 200, s.comments
 		case "/user":
 			return 200, object{"login": controller}
 		}
 	}
-	if method == http.MethodPost && path == prefix+"/issues/1/comments" {
-		comment := object{"id": len(s.comments) + 1, "body": body["body"], "user": object{"login": controller}}
-		s.comments = append(s.comments, comment)
-		return 201, comment
+	if method == http.MethodPost {
+		for pr := 1; pr <= 3; pr++ {
+			if path == fmt.Sprintf("%s/issues/%d/comments", prefix, pr) {
+				comment := object{"id": len(s.comments) + 1, "issue_number": pr, "body": body["body"], "user": object{"login": controller}}
+				s.comments = append(s.comments, comment)
+				return 201, comment
+			}
+		}
 	}
 	if method == http.MethodPatch {
 		for _, comment := range s.comments {
