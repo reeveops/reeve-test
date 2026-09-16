@@ -24,10 +24,11 @@ import (
 )
 
 var (
-	reeveFlag  = flag.String("reeve", "../reeve/bin/reeve", "Reeve binary, relative to repository root")
-	engineFlag = flag.String("engine", "tofu", "OpenTofu executable or path relative to repository root")
-	pulumiFlag = flag.String("pulumi", "pulumi", "Pulumi executable or path relative to repository root")
-	reportFlag = flag.String("report-dir", "", "New report directory, relative to repository root")
+	reeveFlag     = flag.String("reeve", "../reeve/bin/reeve", "Reeve binary, relative to repository root")
+	engineFlag    = flag.String("engine", "tofu", "OpenTofu executable or path relative to repository root")
+	terraformFlag = flag.String("terraform", "terraform", "Terraform executable or path relative to repository root")
+	pulumiFlag    = flag.String("pulumi", "pulumi", "Pulumi executable or path relative to repository root")
+	reportFlag    = flag.String("report-dir", "", "New report directory, relative to repository root")
 )
 
 var reportRoots = struct {
@@ -129,6 +130,10 @@ func newSuite(t *testing.T) *suite {
 }
 
 func newSuiteInReport(t *testing.T, reportSubdir string) *suite {
+	return newHCLSuiteInReport(t, reportSubdir, "tofu", "OpenTofu", *engineFlag)
+}
+
+func newHCLSuiteInReport(t *testing.T, reportSubdir, engineType, engineName, engineValue string) *suite {
 	t.Helper()
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -137,7 +142,7 @@ func newSuiteInReport(t *testing.T, reportSubdir string) *suite {
 	repoRoot := filepath.Dir(cwd)
 	s := &suite{t: t, github: newGitHub(), results: []record{}, repo: repository, actor: author, pr: 1, githubMode: "simulated-loopback"}
 	s.reeve = executable(t, repoRoot, *reeveFlag)
-	s.engine = executable(t, repoRoot, *engineFlag)
+	s.engine = executable(t, repoRoot, engineValue)
 	report := *reportFlag
 	if report == "" {
 		report = filepath.Join(".local", "e2e", time.Now().UTC().Format("20060102T150405.000000000Z"))
@@ -161,15 +166,15 @@ func newSuiteInReport(t *testing.T, reportSubdir string) *suite {
 	s.write(filepath.Join(config, "shared.yaml"), s.read(filepath.Join(cwd, "fixtures", "shared.yaml")), 0600)
 	s.write(filepath.Join(s.module, "main.tf"), s.read(filepath.Join(cwd, "fixtures", "main.tf")), 0600)
 	s.trace = filepath.Join(s.root, "engine-invocations.log")
-	wrapper := filepath.Join(s.root, "tofu-traced")
+	wrapper := filepath.Join(s.root, engineType+"-traced")
 	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'" }
 	s.write(wrapper, []byte("#!/bin/sh\nset -eu\nprintf '%s\\n' \"$*\" >> "+quote(s.trace)+"\nexec "+quote(s.engine)+" \"$@\"\n"), 0700)
 	wrapperJSON, err := json.Marshal(wrapper)
 	s.check(err)
-	s.write(filepath.Join(config, "tofu.yaml"), []byte(fmt.Sprintf(`version: 1
+	s.write(filepath.Join(config, engineType+".yaml"), []byte(fmt.Sprintf(`version: 1
 config_type: engine
 engine:
-  type: tofu
+  type: %s
   binary:
     path: %s
   plan_locking: true
@@ -180,7 +185,7 @@ engine:
   execution:
     preview_timeout: 1m
     apply_timeout: 1m
-`, wrapperJSON)), 0600)
+`, engineType, wrapperJSON)), 0600)
 	testHome := filepath.Join(s.root, "home")
 	s.check(os.Mkdir(testHome, 0700))
 	s.env = []string{
@@ -190,7 +195,7 @@ engine:
 		"TMPDIR=" + s.root, "LANG=C.UTF-8", "NO_COLOR=1", "CI=true",
 		"GITHUB_API_URL=" + server.URL + "/api/v3/", "GITHUB_TOKEN=" + dummyToken,
 	}
-	t.Logf("Reeve: %s\nOpenTofu: %s\nReports: %s", s.reeve, s.engine, s.report)
+	t.Logf("Reeve: %s\n%s: %s\nReports: %s", s.reeve, engineName, s.engine, s.report)
 	return s
 }
 

@@ -5,6 +5,7 @@ experimental = true
 go = "latest"
 pulumi = "latest"
 opentofu = "latest"
+terraform = "latest"
 
 [env]
 # Matches the README one-time setup; any string works, it only encrypts
@@ -38,12 +39,12 @@ description = "Build the sibling Reeve checkout with its own pinned Go toolchain
 
 [tasks.e2e]
 depends = ["e2e:build"]
-tools = { opentofu = "1.12.6", pulumi = "3.262.0" }
+tools = { opentofu = "1.12.6", pulumi = "3.262.0", terraform = "1.16.2" }
 run = "go test -race -tags=e2e -count=1 -v ./e2e -args"
 description = "Run disposable CLI E2E scenarios without GitHub or cloud credentials"
 
 [tasks."e2e:run"]
-tools = { opentofu = "1.12.6", pulumi = "3.262.0" }
+tools = { opentofu = "1.12.6", pulumi = "3.262.0", terraform = "1.16.2" }
 run = "go test -race -tags=e2e -count=1 -v ./e2e -args"
 description = "Run E2E against an existing binary; accepts --reeve and --report-dir"
 

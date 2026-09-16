@@ -1,7 +1,8 @@
 # Local E2E
 
-- Run the real Reeve CLI, OpenTofu, and Pulumi against a loopback GitHub REST fixture.
+- Run the real Reeve CLI, OpenTofu, Terraform, and Pulumi against a loopback GitHub REST fixture.
 - OpenTofu uses the built-in `terraform_data` resource and local engine state.
+- Terraform runs a separate create, update, no-op, delete, and saved-plan lifecycle against the same cloud-free fixture shape.
 - Pulumi uses component resources, a prebuilt Go program, and a disposable local backend.
 - Reeve uses a separate filesystem bucket; both stores survive the scenario's commands and are deleted at completion.
 
@@ -15,7 +16,7 @@ mise run e2e
 
 - This builds the sibling `../reeve` checkout with that repository's Go toolchain.
 - The harness uses Go's standard library and runs with `go test -race -tags=e2e`; ordinary Go tests do not require the E2E binaries.
-- The harness uses OpenTofu 1.12.6 and Pulumi 3.262.0 without changing the existing demo state.
+- The harness uses OpenTofu 1.12.6, Terraform 1.16.2, and Pulumi 3.262.0 without changing the existing demo state.
 - Initial tool installation and building need network access; the built-in resource requires no provider download.
 
 To test an already-built candidate:
@@ -49,6 +50,7 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 | Plan modes | Locking off re-plans; missing artifacts fall back; stale plans fail closed. |
 | Refresh | Dry-run and writing refreshes plus apply-with-refresh use the intended engine modes. |
 | Rerun identity | Two attempts keep distinct manifests and plans; apply selects the newer snapshot, and apply/refresh retain attempt 2 after authoritative head lookup. |
+| Terraform | Separate create, update, no-op, delete, and saved-plan apply through the public CLI. |
 | Pulumi | Local-backend create, no-op, refresh, delete, and saved-plan apply. |
 | Approvals | Missing, self, unlisted, stale, and changes-requested reviews deny apply. |
 | Changed commit | Previous-head approval stops counting on a new head. |
@@ -75,7 +77,7 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 - [e2e-local.yml](../.github/workflows/e2e-local.yml) runs on PRs, master pushes, and manual dispatch.
 - It builds the pinned Reeve commit; manual dispatch can select a candidate commit through `reeve-ref`.
 - It grants only `contents: read` and requests no OIDC token or repository secret.
-- CI installs only the pinned tools required by the local OpenTofu and Pulumi fixtures.
+- CI installs only the pinned tools required by the local OpenTofu, Terraform, and Pulumi fixtures.
 - Shared GitOps, drift, and maintenance callers replace the legacy direct-action demo workflows.
 
 ## Boundaries and next layers

@@ -47,6 +47,7 @@ jobs:
             go = "1.26.6"
             opentofu = "1.12.6"
             pulumi = "3.262.0"
+            terraform = "1.16.2"
 
       - name: Restore Go dependency and build cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
