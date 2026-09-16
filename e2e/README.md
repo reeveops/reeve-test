@@ -44,6 +44,7 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 | Lock queue | Three PRs contend for one stack, preserve FIFO order, adopt promoted reservations, and leave no queue entries. |
 | Lock recovery | An expired holder is evicted during acquisition; SIGTERM releases a live lock and persists a failed manifest and audit record. |
 | Maintenance | A real sweep promotes expired queues, prunes only old artifacts, isolates malformed locks, and performs no writes on a second no-op run. |
+| Historical isolation | Preview and apply ignore 2,000 expired malformed artifacts owned by another PR and leave them for explicit maintenance. |
 | Saved plans | Preview artifact exists; successful apply executes it without re-planning. |
 | Plan modes | Locking off re-plans; missing artifacts fall back; stale plans fail closed. |
 | Refresh | Dry-run and writing refreshes plus apply-with-refresh use the intended engine modes. |
