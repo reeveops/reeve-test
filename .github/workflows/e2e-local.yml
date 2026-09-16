@@ -10,7 +10,7 @@ on:
       reeve-ref:
         description: Reeve commit to test
         type: string
-        default: "ec917c9ab62e0052b5d3376897cfe84aa647b17f"
+        default: "9cf21fa3de74c5c877ac72630e76e76fa12479ac"
 
 permissions:
   contents: read
@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: reeveops/reeve
-          ref: ${{ inputs.reeve-ref || 'ec917c9ab62e0052b5d3376897cfe84aa647b17f' }}
+          ref: ${{ inputs.reeve-ref || '9cf21fa3de74c5c877ac72630e76e76fa12479ac' }}
           path: .local/reeve-source
           persist-credentials: false
 

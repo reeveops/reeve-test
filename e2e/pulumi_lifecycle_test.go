@@ -128,7 +128,7 @@ engine:
     url: %s
     secrets_provider:
       type: passphrase
-      passphrase: ${env:PULUMI_CONFIG_PASSPHRASE}
+      passphrase: reeve-e2e-passphrase
   plan_locking: true
   stacks:
     - project: reeve-e2e-pulumi
