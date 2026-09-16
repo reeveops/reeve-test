@@ -23,6 +23,7 @@ type object = map[string]any
 
 type githubState struct {
 	sha                      string
+	changed                  string
 	reviews                  []object
 	comments                 []object
 	check                    string
@@ -39,7 +40,7 @@ type githubFixture struct {
 
 func newGitHub() *githubFixture {
 	return &githubFixture{state: githubState{
-		check: "success", reviews: []object{}, comments: []object{},
+		check: "success", changed: "envs/lifecycle/main.tf", reviews: []object{}, comments: []object{},
 		requests: map[string]int{}, unexpected: []string{},
 	}}
 }
@@ -118,7 +119,7 @@ func (g *githubFixture) route(method, path string, body object) (int, any) {
 				"base": object{"sha": strings.Repeat("b", 40), "ref": "master", "repo": object{"full_name": repository, "private": false}},
 			}
 		case prefix + "/pulls/1/files":
-			return 200, []object{{"filename": "envs/lifecycle/main.tf", "status": "modified"}}
+			return 200, []object{{"filename": s.changed, "status": "modified"}}
 		case prefix + "/pulls/1/reviews":
 			if s.reviewError {
 				return 503, object{"message": "simulated review outage"}
