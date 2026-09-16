@@ -18,9 +18,10 @@ import (
 )
 
 type applyProcess struct {
-	cmd    *exec.Cmd
-	cancel context.CancelFunc
-	output *tailBuffer
+	cmd     *exec.Cmd
+	cancel  context.CancelFunc
+	output  *tailBuffer
+	started time.Time
 }
 
 type persistedLock struct {
@@ -273,12 +274,13 @@ func startApplyProcess(t *testing.T, s *suite, runNumber, runAttempt int) *apply
 	cmd.WaitDelay = 5 * time.Second
 	output := &tailBuffer{}
 	cmd.Stdout, cmd.Stderr = output, output
+	started := time.Now()
 	if err := cmd.Start(); err != nil {
 		cancel()
 		t.Fatal(err)
 	}
 	t.Cleanup(cancel)
-	return &applyProcess{cmd: cmd, cancel: cancel, output: output}
+	return &applyProcess{cmd: cmd, cancel: cancel, output: output, started: started}
 }
 
 func waitApplyProcess(t *testing.T, s *suite, logName string, process *applyProcess, expected int) {
@@ -290,6 +292,14 @@ func waitApplyProcess(t *testing.T, s *suite, logName string, process *applyProc
 	if process.cmd.ProcessState != nil {
 		exitCode = process.cmd.ProcessState.ExitCode()
 	}
+	s.results = append(s.results, record{
+		Scenario:       strings.TrimSuffix(logName, ".log"),
+		ExitCode:       exitCode,
+		Seconds:        time.Since(process.started).Seconds(),
+		Log:            logName,
+		EngineCommands: []string{},
+		APIRequests:    map[string]int{},
+	})
 	var exitErr *exec.ExitError
 	if err != nil && !errors.As(err, &exitErr) {
 		t.Fatalf("apply process failed: %v", err)

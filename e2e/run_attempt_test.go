@@ -61,6 +61,7 @@ func TestRunAttemptsKeepArtifactsDistinct(t *testing.T) {
 
 func (s *suite) runWithIdentity(logName, command string, runNumber, runAttempt, expectedExit int) record {
 	s.t.Helper()
+	requestsBefore := s.github.requestSnapshot()
 	sha := s.github.head()
 	prRequestKey := fmt.Sprintf("GET /repos/%s/pulls/%d", s.repo, s.pr)
 	prReadsBefore := 0
@@ -110,6 +111,7 @@ func (s *suite) runWithIdentity(logName, command string, runNumber, runAttempt, 
 		r.ExitCode = cmd.ProcessState.ExitCode()
 	}
 	r.EngineCommands = s.commands()[before:]
+	r.APIRequests = requestDelta(requestsBefore, s.github.requestSnapshot())
 	s.write(filepath.Join(s.report, logName), output.data, 0o600)
 	s.require(ctx.Err() == nil, "%s timed out", r.Scenario)
 	var exitErr *exec.ExitError

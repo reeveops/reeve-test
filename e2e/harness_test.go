@@ -46,13 +46,14 @@ type manifest struct {
 	Stacks []stackResult `json:"stacks"`
 }
 type record struct {
-	Scenario       string   `json:"scenario"`
-	ExitCode       int      `json:"exit_code"`
-	Seconds        float64  `json:"seconds"`
-	Log            string   `json:"log"`
-	EngineCommands []string `json:"engine_commands"`
-	Manifest       bool     `json:"manifest"`
-	RunID          string   `json:"run_id"`
+	Scenario       string         `json:"scenario"`
+	ExitCode       int            `json:"exit_code"`
+	Seconds        float64        `json:"seconds"`
+	Log            string         `json:"log"`
+	EngineCommands []string       `json:"engine_commands"`
+	APIRequests    map[string]int `json:"api_requests"`
+	Manifest       bool           `json:"manifest"`
+	RunID          string         `json:"run_id"`
 }
 type suite struct {
 	t                                          *testing.T
@@ -275,6 +276,7 @@ func (s *suite) run(label, command string, expected int) (*manifest, record) {
 
 func (s *suite) runArgs(label, command string, expected int, extra ...string) (*manifest, record) {
 	s.t.Helper()
+	requestsBefore := s.github.requestSnapshot()
 	prRequestKey := fmt.Sprintf("GET /repos/%s/pulls/%d", s.repo, s.pr)
 	prReadsBefore := 0
 	if command == "apply" {
@@ -321,6 +323,7 @@ func (s *suite) runArgs(label, command string, expected int, extra ...string) (*
 		r.ExitCode = cmd.ProcessState.ExitCode()
 	}
 	r.EngineCommands = s.commands()[before:]
+	r.APIRequests = requestDelta(requestsBefore, s.github.requestSnapshot())
 	s.write(filepath.Join(s.report, r.Log), output.data, 0600)
 	path := filepath.Join(s.root, ".reeve-state", "runs", fmt.Sprintf("pr-%d", s.pr), r.RunID, "manifest.json")
 	var result *manifest

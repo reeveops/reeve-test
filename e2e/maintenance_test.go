@@ -120,7 +120,20 @@ func (s *suite) runMaintenance(logName string) string {
 	cmd.WaitDelay = 5 * time.Second
 	var output tailBuffer
 	cmd.Stdout, cmd.Stderr = &output, &output
+	started := time.Now()
 	err := cmd.Run()
+	exitCode := -1
+	if cmd.ProcessState != nil {
+		exitCode = cmd.ProcessState.ExitCode()
+	}
+	s.results = append(s.results, record{
+		Scenario:       strings.TrimSuffix(logName, ".log"),
+		ExitCode:       exitCode,
+		Seconds:        time.Since(started).Seconds(),
+		Log:            logName,
+		EngineCommands: []string{},
+		APIRequests:    map[string]int{},
+	})
 	s.write(filepath.Join(s.report, logName), output.data, 0o600)
 	s.require(ctx.Err() == nil, "maintenance timed out; see %s", logName)
 	s.require(err == nil, "maintenance failed: %v; see %s", err, logName)

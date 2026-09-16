@@ -65,7 +65,7 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 
 ## Reports
 
-- `.local/e2e/<timestamp>/summary.json` records scenarios, exit codes, engine invocations, and API counts.
+- `.local/e2e/<timestamp>/summary.json` records per-command elapsed time, exit codes, engine invocations, and API request deltas.
 - Per-command logs, manifests, audit entries, and simulated comments aid failure diagnosis.
 - Reports exclude engine state and opaque saved plans; fixtures contain only synthetic data.
 - CI uploads `e2e-report/` for seven days, including on failure.

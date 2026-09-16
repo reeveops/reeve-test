@@ -57,6 +57,26 @@ func (g *githubFixture) head() string {
 	return g.state.sha
 }
 
+func (g *githubFixture) requestSnapshot() map[string]int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	result := make(map[string]int, len(g.state.requests))
+	for key, count := range g.state.requests {
+		result[key] = count
+	}
+	return result
+}
+
+func requestDelta(before, after map[string]int) map[string]int {
+	result := map[string]int{}
+	for key, count := range after {
+		if delta := count - before[key]; delta > 0 {
+			result[key] = delta
+		}
+	}
+	return result
+}
+
 func (g *githubFixture) approve(login, sha, state string) {
 	g.edit(func(s *githubState) {
 		if login == "" {
