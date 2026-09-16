@@ -61,12 +61,13 @@
 ## Live acceptance sequence
 
 1. Author App creates a fixture PR at a recorded head SHA.
-2. Preview persists artifacts to the job's temporary filesystem bucket.
-3. Apply without approval is blocked.
-4. Reviewer App approves that exact head, then the trusted command job applies.
-5. Author App pushes another commit and the old approval is rejected.
-6. Reviewer requests changes and the gate stays blocked.
-7. Cleanup closes the test PR and removes only that scenario's resources/state.
+2. The shared workflow previews the OpenTofu lifecycle fixture and the harness waits for its successful check.
+3. Preview persists artifacts to the harness job's temporary filesystem bucket.
+4. Apply without approval is blocked.
+5. Reviewer App approves that exact head, then the trusted command job applies.
+6. Author App pushes another commit and the old approval is rejected.
+7. Reviewer requests changes and the gate stays blocked.
+8. Cleanup closes the test PR and removes only that scenario's resources/state.
 
 - Author and reviewer tokens must not reach untrusted PR workflow code.
 - This workflow keeps all commands in one job; storage shared across separate workflow runs remains a later test lane.

@@ -1,0 +1,22 @@
+name: Reeve Shared E2E
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, closed]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  reeve:
+    uses: reeveops/reeve/.github/workflows/reeve.yml@35aa8792c4ffd434637c5287650bcd3f3df21adb
+    with:
+      mode: gitops
+      root: tf
+      opentofu_version: "1.12.6"

@@ -10,6 +10,9 @@ engine:
   # Declared stacks are authoritative: reeve creates a declared-but-missing
   # workspace on first use, so no manual `tofu workspace new` is needed.
   stacks:
+    - project: lifecycle
+      path: envs/lifecycle
+      stacks: [default]
     - project: random-name
       path: envs/random-name
       stacks: [dev, prod]

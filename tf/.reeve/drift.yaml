@@ -1,0 +1,11 @@
+version: 1
+config_type: drift
+
+scope:
+  include_patterns: ["*/*"]
+
+behavior:
+  refresh_before_check: true
+  max_parallel_stacks: 2
+  state_bootstrap:
+    mode: baseline

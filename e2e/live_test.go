@@ -43,6 +43,8 @@ type liveFixture struct {
 	closed, deleted                   bool
 }
 
+const liveFixturePath = "tf/envs/lifecycle/main.tf"
+
 func TestLiveGitHub(t *testing.T) {
 	if !*liveFlag {
 		t.Skip("Use the Live GitHub E2E workflow to provide scoped App tokens")
@@ -177,7 +179,7 @@ func (f *liveFixture) commit(source string) {
 		Commit  struct{ SHA string }
 		Content struct{ SHA string }
 	}
-	s.check(f.author.call(s.t.Context(), "PUT", "/contents/envs/lifecycle/main.tf", body, &result))
+	s.check(f.author.call(s.t.Context(), "PUT", "/contents/"+liveFixturePath, body, &result))
 	s.require(len(result.Commit.SHA) == 40 && result.Content.SHA != "", "Commit response missing SHA")
 	f.contentSHA = result.Content.SHA
 	s.github.edit(func(g *githubState) { g.sha = result.Commit.SHA })
@@ -208,7 +210,7 @@ func (f *liveFixture) waitChecks() {
 	ctx, cancel := context.WithTimeout(s.t.Context(), 2*time.Minute)
 	defer cancel()
 	for {
-		ready := true
+		ready, sharedGitOps := true, false
 		for page := 1; ; page++ {
 			var checks struct {
 				Total int                                         `json:"total_count"`
@@ -216,6 +218,9 @@ func (f *liveFixture) waitChecks() {
 			}
 			s.check(f.controller.call(ctx, "GET", "/commits/"+s.github.head()+"/check-runs?per_page=100&page="+strconv.Itoa(page), nil, &checks))
 			for _, check := range checks.Runs {
+				if check.Name == "gitops" || strings.HasSuffix(check.Name, " / gitops") {
+					sharedGitOps = true
+				}
 				if check.Status != "completed" {
 					ready = false
 					continue
@@ -226,7 +231,7 @@ func (f *liveFixture) waitChecks() {
 				break
 			}
 		}
-		if ready {
+		if ready && sharedGitOps {
 			return
 		}
 		select {
