@@ -48,6 +48,16 @@ jobs:
             opentofu = "1.12.6"
             pulumi = "3.262.0"
 
+      - name: Restore Go dependency and build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: reeve-e2e-go-v1-${{ runner.os }}-${{ runner.arch }}-1.26.6-${{ hashFiles('.local/reeve-source/go.sum') }}
+          restore-keys: |
+            reeve-e2e-go-v1-${{ runner.os }}-${{ runner.arch }}-1.26.6-
+
       - name: Build Reeve
         run: mise exec -- go -C .local/reeve-source build -o bin/reeve ./cmd/reeve
 
