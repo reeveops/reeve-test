@@ -19,6 +19,7 @@ type planStart struct {
 }
 
 func TestParallelPreview(t *testing.T) {
+	t.Parallel()
 	s := newSuiteInReport(t, "parallel-preview")
 	modules := []struct {
 		project string

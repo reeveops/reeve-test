@@ -37,6 +37,7 @@ type persistedLock struct {
 }
 
 func TestConcurrentApplyHeartbeatKeepsLiveHolder(t *testing.T) {
+	t.Parallel()
 	s := newSuiteInReport(t, "concurrent-apply")
 	s.newHead("concurrent-apply")
 	s.github.approve("", "", "")
@@ -102,6 +103,7 @@ func TestConcurrentApplyHeartbeatKeepsLiveHolder(t *testing.T) {
 }
 
 func TestApplyQueuePromotesPRsInFIFOOrder(t *testing.T) {
+	t.Parallel()
 	s := newSuiteInReport(t, "fifo-promotion")
 	configPath := filepath.Join(s.root, ".reeve", "tofu.yaml")
 	s.setPlanLocking(configPath, false)
@@ -192,6 +194,7 @@ func TestApplyQueuePromotesPRsInFIFOOrder(t *testing.T) {
 }
 
 func TestExpiredHolderIsEvictedByApply(t *testing.T) {
+	t.Parallel()
 	s := newSuiteInReport(t, "expired-holder")
 	s.newHead("expired-holder")
 	s.preview("expired-holder-preview", counts{Add: 1})
@@ -216,6 +219,7 @@ func TestExpiredHolderIsEvictedByApply(t *testing.T) {
 }
 
 func TestCancelledApplyReleasesLockAndPersistsFailure(t *testing.T) {
+	t.Parallel()
 	s := newSuiteInReport(t, "cancelled-apply")
 	s.newHead("cancelled-apply")
 	s.preview("cancelled-apply-preview", counts{Add: 1})

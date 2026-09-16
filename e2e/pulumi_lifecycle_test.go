@@ -13,6 +13,7 @@ import (
 )
 
 func TestPulumiLifecycle(t *testing.T) {
+	t.Parallel()
 	s := newPulumiSuite(t)
 	s.newHead("pulumi-create")
 	m, _ := s.run("pulumi-create-preview", "preview", 0)

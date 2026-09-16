@@ -16,6 +16,7 @@ import (
 )
 
 func TestMaintenanceLifecycle(t *testing.T) {
+	t.Parallel()
 	s := newSuiteInReport(t, "maintenance")
 	sharedPath := filepath.Join(s.root, ".reeve", "shared.yaml")
 	shared := string(s.read(sharedPath)) + "\nretention:\n  max_age: 1h\n"

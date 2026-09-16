@@ -17,6 +17,7 @@ import (
 )
 
 func TestRunAttemptsKeepArtifactsDistinct(t *testing.T) {
+	t.Parallel()
 	s := newSuiteInReport(t, "run-attempts")
 	s.newHead("run-attempts")
 	sha := s.github.head()

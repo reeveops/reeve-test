@@ -11,6 +11,7 @@ import (
 )
 
 func TestPlanArtifactModes(t *testing.T) {
+	t.Parallel()
 	s := newSuiteInReport(t, "plan-artifact-modes")
 	s.newHead("plan-mode-baseline")
 	s.preview("plan-mode-baseline-preview", counts{Add: 1})
@@ -51,6 +52,7 @@ func TestPlanArtifactModes(t *testing.T) {
 }
 
 func TestRefreshModes(t *testing.T) {
+	t.Parallel()
 	s := newSuiteInReport(t, "refresh-modes")
 	s.newHead("refresh-baseline")
 	s.preview("refresh-baseline-preview", counts{Add: 1})
@@ -86,6 +88,7 @@ func TestRefreshModes(t *testing.T) {
 }
 
 func TestStaleSavedPlanFailsClosed(t *testing.T) {
+	t.Parallel()
 	s := newSuiteInReport(t, "stale-plan")
 	s.newHead("stale-plan-baseline")
 	s.preview("stale-plan-baseline-preview", counts{Add: 1})
