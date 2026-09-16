@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   maintenance:
-    uses: reeveops/reeve/.github/workflows/reeve.yml@70d42cddada31a6ea8822fbf7b0f627b32da1221
+    uses: reeveops/reeve/.github/workflows/reeve.yml@23fd0ba9d53ff8a839d67c4f304ca00566785af4
     with:
       mode: maintenance
       root: tf

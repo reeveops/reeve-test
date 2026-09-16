@@ -1,0 +1,137 @@
+name: Cloud Blob Contract
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: Cloud backend to validate.
+        required: true
+        type: choice
+        options:
+          - all
+          - aws
+          - gcp
+        default: all
+      reeve-ref:
+        description: Exact Reeve commit to test.
+        required: true
+        type: string
+        default: "23fd0ba9d53ff8a839d67c4f304ca00566785af4"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-blob-contract
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Validate selected cloud configuration
+        env:
+          BACKEND: ${{ inputs.backend }}
+          REEVE_REF: ${{ inputs.reeve-ref }}
+          AWS_ROLE_ARN: ${{ vars.E2E_AWS_ROLE_ARN }}
+          AWS_REGION: ${{ vars.E2E_AWS_REGION }}
+          S3_BUCKET: ${{ vars.E2E_S3_BUCKET }}
+          GCP_PROVIDER: ${{ vars.E2E_GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ vars.E2E_GCP_SERVICE_ACCOUNT }}
+          GCS_BUCKET: ${{ vars.E2E_GCS_BUCKET }}
+        run: |
+          set -eu
+          if [[ ! "$REEVE_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            printf 'reeve-ref must be a full lowercase commit SHA\n' >&2
+            exit 1
+          fi
+          missing=""
+          if [ "$BACKEND" = all ] || [ "$BACKEND" = aws ]; then
+            [ -n "$AWS_ROLE_ARN" ] || missing="$missing AWS_ROLE_ARN"
+            [ -n "$AWS_REGION" ] || missing="$missing AWS_REGION"
+            [ -n "$S3_BUCKET" ] || missing="$missing S3_BUCKET"
+          fi
+          if [ "$BACKEND" = all ] || [ "$BACKEND" = gcp ]; then
+            [ -n "$GCP_PROVIDER" ] || missing="$missing GCP_PROVIDER"
+            [ -n "$GCP_SERVICE_ACCOUNT" ] || missing="$missing GCP_SERVICE_ACCOUNT"
+            [ -n "$GCS_BUCKET" ] || missing="$missing GCS_BUCKET"
+          fi
+          if [ -n "$missing" ]; then
+            printf 'missing repository variables:%s\n' "$missing" >&2
+            exit 1
+          fi
+
+  aws:
+    if: inputs.backend == 'all' || inputs.backend == 'aws'
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout pinned Reeve source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: reeveops/reeve
+          ref: ${{ inputs.reeve-ref }}
+          persist-credentials: false
+
+      - name: Install Go
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4
+        with:
+          cache_save: false
+          mise_toml: |
+            [tools]
+            go = "1.26.6"
+
+      - name: Authenticate to AWS
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.E2E_AWS_ROLE_ARN }}
+          aws-region: ${{ vars.E2E_AWS_REGION }}
+          role-session-name: reeve-contract-${{ github.run_id }}
+
+      - name: Run S3 contract
+        env:
+          REEVE_S3_CONTRACT_BUCKET: ${{ vars.E2E_S3_BUCKET }}
+          REEVE_S3_CONTRACT_REGION: ${{ vars.E2E_AWS_REGION }}
+          REEVE_S3_CONTRACT_PREFIX: reeve-test/${{ github.run_id }}-${{ github.run_attempt }}/aws
+        run: mise exec -- go test -race -count=1 -v ./internal/blob/s3 -run '^TestContract$'
+
+  gcp:
+    if: inputs.backend == 'all' || inputs.backend == 'gcp'
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout pinned Reeve source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: reeveops/reeve
+          ref: ${{ inputs.reeve-ref }}
+          persist-credentials: false
+
+      - name: Install Go
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4
+        with:
+          cache_save: false
+          mise_toml: |
+            [tools]
+            go = "1.26.6"
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.E2E_GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.E2E_GCP_SERVICE_ACCOUNT }}
+
+      - name: Run GCS contract
+        env:
+          REEVE_GCS_CONTRACT_BUCKET: ${{ vars.E2E_GCS_BUCKET }}
+          REEVE_GCS_CONTRACT_PREFIX: reeve-test/${{ github.run_id }}-${{ github.run_attempt }}/gcp
+        run: mise exec -- go test -race -count=1 -v ./internal/blob/gcs -run '^TestContract$'
