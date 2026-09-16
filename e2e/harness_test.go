@@ -249,7 +249,7 @@ func (s *suite) newHead(label string) {
 
 func (s *suite) run(label, command string, expected int) (*manifest, record) {
 	s.t.Helper()
-	prRequestKey := "GET /repos/" + repository + "/pulls/1"
+	prRequestKey := fmt.Sprintf("GET /repos/%s/pulls/%d", s.repo, s.pr)
 	prReadsBefore := 0
 	if command == "apply" {
 		s.github.edit(func(g *githubState) { prReadsBefore = g.requests[prRequestKey] })
@@ -411,7 +411,7 @@ func (s *suite) apply(label string, failed bool) {
 	if failed {
 		exit, status, outcome = 1, "error", "failed"
 	}
-	requestKey := "GET /repos/" + repository + "/issues/1/comments"
+	requestKey := fmt.Sprintf("GET /repos/%s/issues/%d/comments", s.repo, s.pr)
 	commentReadsBefore := 0
 	s.github.edit(func(g *githubState) { commentReadsBefore = g.requests[requestKey] })
 	m, r := s.run(label, "apply", exit)
