@@ -242,6 +242,11 @@ func (s *suite) newHead(label string) {
 
 func (s *suite) run(label, command string, expected int) (*manifest, record) {
 	s.t.Helper()
+	prRequestKey := "GET /repos/" + repository + "/pulls/1"
+	prReadsBefore := 0
+	if command == "apply" {
+		s.github.edit(func(g *githubState) { prReadsBefore = g.requests[prRequestKey] })
+	}
 	sequence := len(s.results) + 1
 	sha := s.github.head()
 	prefix := command
@@ -291,8 +296,16 @@ func (s *suite) run(label, command string, expected int) (*manifest, record) {
 	s.require(err == nil || errors.As(err, &exitErr), "%s: process failed: %v", label, err)
 	s.require(r.ExitCode == expected, "%s: exit %d, expected %d; see %s", label, r.ExitCode, expected, r.Log)
 	var unexpected []string
-	s.github.edit(func(g *githubState) { unexpected = append(unexpected, g.unexpected...) })
+	prReadsAfter := 0
+	s.github.edit(func(g *githubState) {
+		unexpected = append(unexpected, g.unexpected...)
+		prReadsAfter = g.requests[prRequestKey]
+	})
 	s.require(len(unexpected) == 0, "Unexpected API calls: %v", unexpected)
+	if command == "apply" {
+		s.require(prReadsAfter-prReadsBefore == 1,
+			"%s: apply fetched PR metadata %d times, expected one coherent snapshot", label, prReadsAfter-prReadsBefore)
+	}
 	if r.Manifest {
 		result = &manifest{}
 		s.readJSON(path, result)
