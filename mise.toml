@@ -75,8 +75,13 @@ tools = { go = "1.26.6", "github:fsouza/fake-gcs-server" = "1.56.1" }
 run = "bash e2e/run-local-gcs-contract.sh"
 description = "Run the Reeve GCS adapter contract against a disposable local server"
 
+[tasks."blob:local"]
+tools = { go = "1.26.6", minio = "2025.10.15.17.29.55", "github:fsouza/fake-gcs-server" = "1.56.1" }
+run = "bash e2e/run-local-blob-contracts.sh"
+description = "Run the local S3 and GCS adapter contracts concurrently"
+
 [tasks."e2e:scripts"]
-run = "bash -n e2e/run-local-s3-contract.sh e2e/run-local-gcs-contract.sh e2e/bootstrap/configure-github.sh"
+run = "bash -n e2e/run-local-blob-contracts.sh e2e/run-local-s3-contract.sh e2e/run-local-gcs-contract.sh e2e/bootstrap/configure-github.sh"
 description = "Validate E2E shell scripts"
 
 # ── reeve against the fixture ──────────────────────────────────────────

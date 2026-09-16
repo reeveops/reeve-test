@@ -57,8 +57,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: reeve-e2e-go-v1-${{ runner.os }}-${{ runner.arch }}-1.26.6-${{ hashFiles('.local/reeve-source/go.sum') }}
+          key: reeve-e2e-go-v2-${{ runner.os }}-${{ runner.arch }}-1.26.6-${{ hashFiles('.local/reeve-source/go.sum') }}
           restore-keys: |
+            reeve-e2e-go-v2-${{ runner.os }}-${{ runner.arch }}-1.26.6-
             reeve-e2e-go-v1-${{ runner.os }}-${{ runner.arch }}-1.26.6-
 
       - name: Build Reeve
@@ -68,10 +69,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          {
-            mise exec -- bash e2e/run-local-s3-contract.sh .local/reeve-source
-            mise exec -- bash e2e/run-local-gcs-contract.sh .local/reeve-source
-          } 2>&1 | tee local-blob-contracts.log
+          mise exec -- bash e2e/run-local-blob-contracts.sh .local/reeve-source 2>&1 | tee local-blob-contracts.log
 
       - name: Run real CLI and engine scenarios
         run: mise exec -- go test -race -tags=e2e -count=1 -v ./e2e -args --reeve .local/reeve-source/bin/reeve --report-dir e2e-report

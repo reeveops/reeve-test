@@ -36,9 +36,12 @@ mise run e2e:run -- --report-dir .local/e2e/my-run
 To run the S3-compatible adapter contract without AWS credentials:
 
 ```bash
+mise run blob:local
 mise run blob:s3-local
 mise run blob:gcs-local
 ```
+
+- `blob:local` runs both contracts concurrently and is the CI entrypoint.
 
 - The report directory must not already exist.
 - Missing binaries, unexpected API calls, failed assertions, and timeouts produce a nonzero exit.
