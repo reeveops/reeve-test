@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 func TestLifecycle(t *testing.T) {
 	s := newSuite(t)
+	s.noOpPreviewSkipsStateAuth()
 	s.newHead("create")
 	s.preview("create-preview", counts{Add: 1})
 	s.blocked("missing-approval", "approvals")
@@ -107,7 +109,34 @@ resource "terraform_data" "fails" {
 	m, _ := s.run("failed-preview", "preview", 1)
 	s.require(s.stack(m).Status == "error", "Failed preview was not persisted")
 	s.require(!s.appliedMarker(), "Failed preview wrote an applied marker")
-	s.require(len(s.results) == 24, "Expected 24 command scenarios, got %d", len(s.results))
+	s.require(len(s.results) == 25, "Expected 25 command scenarios, got %d", len(s.results))
+}
+
+func (s *suite) noOpPreviewSkipsStateAuth() {
+	s.t.Helper()
+	enginePath := filepath.Join(s.root, ".reeve", "tofu.yaml")
+	authPath := filepath.Join(s.root, ".reeve", "auth.yaml")
+	originalEngine := s.read(enginePath)
+	configuredEngine := strings.Replace(string(originalEngine), "engine:\n", "engine:\n  state:\n    auth_provider: missing-state\n", 1)
+	s.write(enginePath, []byte(configuredEngine), 0600)
+	s.write(authPath, []byte(`version: 1
+config_type: auth
+providers:
+  missing-state:
+    type: github_secret
+    env_var: REEVE_E2E_MISSING_STATE_TOKEN
+`), 0600)
+	s.github.edit(func(g *githubState) { g.changed = "README.md" })
+	defer func() {
+		s.write(enginePath, originalEngine, 0600)
+		s.check(os.Remove(authPath))
+		s.github.edit(func(g *githubState) { g.changed = "envs/lifecycle/main.tf" })
+	}()
+
+	s.newHead("docs-only-no-auth")
+	m, r := s.run("docs-only-no-auth", "preview", 0)
+	s.require(m != nil && len(m.Stacks) == 0, "Docs-only preview did not persist an empty manifest")
+	s.require(len(r.EngineCommands) == 0, "Docs-only preview invoked the engine: %v", r.EngineCommands)
 }
 
 func (s *suite) resources() []any {
