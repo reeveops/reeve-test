@@ -49,6 +49,7 @@ jobs:
             pulumi = "3.262.0"
             terraform = "1.16.2"
             minio = "2025.10.15.17.29.55"
+            "github:fsouza/fake-gcs-server" = "1.56.1"
 
       - name: Restore Go dependency and build cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -63,11 +64,14 @@ jobs:
       - name: Build Reeve
         run: mise exec -- go -C .local/reeve-source build -o bin/reeve ./cmd/reeve
 
-      - name: Run local S3 blob contract
+      - name: Run local cloud blob contracts
         shell: bash
         run: |
           set -o pipefail
-          mise exec -- bash e2e/run-local-s3-contract.sh .local/reeve-source 2>&1 | tee local-s3-contract.log
+          {
+            mise exec -- bash e2e/run-local-s3-contract.sh .local/reeve-source
+            mise exec -- bash e2e/run-local-gcs-contract.sh .local/reeve-source
+          } 2>&1 | tee local-blob-contracts.log
 
       - name: Run real CLI and engine scenarios
         run: mise exec -- go test -race -tags=e2e -count=1 -v ./e2e -args --reeve .local/reeve-source/bin/reeve --report-dir e2e-report
@@ -79,6 +83,6 @@ jobs:
           name: e2e-local-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             e2e-report/
-            local-s3-contract.log
+            local-blob-contracts.log
           if-no-files-found: warn
           retention-days: 7

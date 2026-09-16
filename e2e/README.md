@@ -6,6 +6,7 @@
 - Pulumi uses component resources, a prebuilt Go program, and a disposable local backend.
 - Reeve uses a separate filesystem bucket; both stores survive the scenario's commands and are deleted at completion.
 - A separate local S3 contract runs the Reeve AWS SDK adapter against disposable MinIO.
+- A separate local GCS contract runs the Reeve Google SDK adapter against `fake-gcs-server`.
 
 ## Run
 
@@ -36,6 +37,7 @@ To run the S3-compatible adapter contract without AWS credentials:
 
 ```bash
 mise run blob:s3-local
+mise run blob:gcs-local
 ```
 
 - The report directory must not already exist.
@@ -67,6 +69,7 @@ mise run blob:s3-local
 | Failure reporting | Failed preview/apply persists failure artifacts and updates simulated PR comments. |
 | Audit/locks | Apply outcomes have audit records; finished/blocked runs leave no lock holder or queue entry. |
 | Local S3 contract | Missing objects, overwrite, conditional create/update, concurrent create, recursive listing, and deletion use the real S3 adapter over HTTP. |
+| Local GCS contract | The same seven cases use the real GCS adapter and generation preconditions over local HTTP. |
 
 - Gate tests assert that no engine command ran and engine state remained unchanged.
 - Blocked apply exits zero by Reeve's contract; the test inspects the failed gate and blocked manifest explicitly.
@@ -86,13 +89,14 @@ mise run blob:s3-local
 - It builds the pinned Reeve commit; manual dispatch can select a candidate commit through `reeve-ref`.
 - It grants only `contents: read` and requests no OIDC token or repository secret.
 - CI installs only the pinned tools required by the local OpenTofu, Terraform, and Pulumi fixtures.
-- CI starts pinned MinIO only for the S3 contract inside the existing lifecycle job.
+- CI starts pinned MinIO and `fake-gcs-server` only for their contract steps inside the existing lifecycle job.
 - MinIO is an external AGPLv3 test tool; Reeve does not link or distribute it.
+- `fake-gcs-server` is an external BSD-2-Clause test tool.
 - Shared GitOps, drift, and maintenance callers replace the legacy direct-action demo workflows.
 
 ## Boundaries and next layers
 
-- This suite covers the public Reeve CLI, real engines, the filesystem adapter, the S3 adapter over local HTTP, and simulated GitHub REST responses.
+- This suite covers the public Reeve CLI, real engines, the filesystem adapter, S3 and GCS adapters over local HTTP, and simulated GitHub REST responses.
 - It does not execute the composite action, real webhook routing, actual GitHub reviews, or real cloud services.
 - [Live GitHub identity tests](github-apps.md) have a separate manual workflow with two Apps and a filesystem bucket in one job.
 - Action routing remains covered separately by workflow tests; this suite owns concurrent process, heartbeat, queue, and cancellation behavior.

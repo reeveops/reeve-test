@@ -14,7 +14,7 @@ mise run e2e
 - Uses a simulated GitHub API and disposable state; no GitHub, AWS, GCP, or Pulumi Cloud token is needed.
 - Verifies create, update, delete, no-op, approval gates, failure persistence, saved plans, and lock cleanup.
 - [Local E2E](.github/workflows/e2e-local.yml) runs the same harness in CI and uploads diagnostic reports.
-- Local E2E also runs the Reeve S3 adapter contract against disposable MinIO without cloud credentials.
+- Local E2E also runs the Reeve S3 and GCS adapter contracts against disposable local servers without cloud credentials.
 - [Reeve Shared E2E](.github/workflows/reeve-shared.yml) exercises the pinned reusable GitOps workflow on disposable live PRs.
 - [Reeve Shared Drift E2E](.github/workflows/reeve-shared-drift.yml) exercises the same workflow in manual drift mode with OpenTofu and filesystem state.
 - [Reeve Shared Maintenance E2E](.github/workflows/reeve-shared-maintenance.yml) exercises the same workflow in manual maintenance mode without installing an IaC engine.
