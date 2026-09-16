@@ -1,5 +1,5 @@
 terraform {}
 
 resource "terraform_data" "item" {
-  input = "superseded"
+  input = "updated"
 }
