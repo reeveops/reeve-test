@@ -58,7 +58,7 @@ func TestConcurrentApplyHeartbeatKeepsLiveHolder(t *testing.T) {
 
 	s.preview("concurrent-preview", counts{Add: 1})
 	sha := s.github.head()
-	firstRunID := "apply-200-1-" + sha[:7]
+	firstRunID := "apply-200-1-" + sha
 	first := startApplyProcess(t, s, 200, 1)
 	lockPath := filepath.Join(s.root, ".reeve-state", "locks", "lifecycle", "default.json")
 	initial := waitForLock(t, lockPath, func(lock persistedLock) bool {
@@ -81,7 +81,7 @@ func TestConcurrentApplyHeartbeatKeepsLiveHolder(t *testing.T) {
 		t.Fatal("heartbeat did not extend the original lease")
 	}
 
-	secondRunID := "apply-201-1-" + sha[:7]
+	secondRunID := "apply-201-1-" + sha
 	second := startApplyProcess(t, s, 201, 1)
 	waitApplyProcess(t, s, "concurrent-second.log", second, 0)
 	secondManifest := readRunManifest(t, s, secondRunID)
@@ -131,7 +131,7 @@ func TestApplyQueuePromotesPRsInFIFOOrder(t *testing.T) {
 	s.pr = 1
 	s.github.edit(func(g *githubState) { g.sha = heads[1] })
 	s.github.approve("", "", "")
-	firstRunID := "apply-300-1-" + heads[1][:7]
+	firstRunID := "apply-300-1-" + heads[1]
 	first := startApplyProcess(t, s, 300, 1)
 	lockPath := filepath.Join(s.root, ".reeve-state", "locks", "lifecycle", "default.json")
 	waitForLock(t, lockPath, func(lock persistedLock) bool {
@@ -149,7 +149,7 @@ func TestApplyQueuePromotesPRsInFIFOOrder(t *testing.T) {
 		s.github.approve("", "", "")
 		process := startApplyProcess(t, s, queued.run, 1)
 		waitApplyProcess(t, s, fmt.Sprintf("fifo-pr-%d-blocked.log", queued.pr), process, 0)
-		runID := fmt.Sprintf("apply-%d-1-%s", queued.run, heads[queued.pr][:7])
+		runID := fmt.Sprintf("apply-%d-1-%s", queued.run, heads[queued.pr])
 		m := readRunManifestForPR(t, s, queued.pr, runID)
 		s.require(s.stack(m).Status == "blocked", "PR %d did not block behind the active holder", queued.pr)
 		waitForLock(t, lockPath, func(lock persistedLock) bool {
@@ -178,7 +178,7 @@ func TestApplyQueuePromotesPRsInFIFOOrder(t *testing.T) {
 		s.github.approve("", "", "")
 		process := startApplyProcess(t, s, promoted.run, 1)
 		waitApplyProcess(t, s, fmt.Sprintf("fifo-pr-%d-promoted.log", promoted.pr), process, 0)
-		runID := fmt.Sprintf("apply-%d-1-%s", promoted.run, heads[promoted.pr][:7])
+		runID := fmt.Sprintf("apply-%d-1-%s", promoted.run, heads[promoted.pr])
 		m := readRunManifestForPR(t, s, promoted.pr, runID)
 		s.require(s.stack(m).Status != "blocked", "promoted PR %d did not adopt its reservation", promoted.pr)
 		if promoted.next != 0 {
@@ -235,7 +235,7 @@ func TestCancelledApplyReleasesLockAndPersistsFailure(t *testing.T) {
 	s.write(configPath, []byte(config), 0o600)
 
 	sha := s.github.head()
-	runID := "apply-400-1-" + sha[:7]
+	runID := "apply-400-1-" + sha
 	process := startApplyProcess(t, s, 400, 1)
 	lockPath := filepath.Join(s.root, ".reeve-state", "locks", "lifecycle", "default.json")
 	waitForLock(t, lockPath, func(lock persistedLock) bool {

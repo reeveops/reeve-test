@@ -64,15 +64,16 @@ mise run blob:gcs-local
 | Rerun identity | Two attempts keep distinct manifests and plans; apply selects the newer snapshot, and apply/refresh retain attempt 2 after authoritative head lookup. |
 | Terraform | Separate create, update, forced replacement, no-op, delete, and saved-plan apply through the public CLI. |
 | Pulumi | Local-backend create, no-op, refresh, delete, and saved-plan apply. |
-| Approvals | Missing, self, unlisted, stale, and changes-requested reviews deny apply. |
+| Approvals | CODEOWNERS, explicit lists, combined policies, and public unlisted-review opt-in exercise allowed and denied applies. Missing, self, stale, and changes-requested reviews also deny apply. |
+| Break-glass | `internal_list`, CODEOWNERS, and `anyone` exercise authorization, denial, justification, intent/completion audits, comments, state, and lock cleanup. |
 | Changed commit | Previous-head approval stops counting on a new head. |
 | Other gates | Active freeze windows, failing checks, behind-base, draft, and fork classifications deny apply. |
 | API failure | Review-read failure exits nonzero and never invokes engine apply. |
 | Idempotency | A repeated apply of the same head does not invoke the engine or change state. |
 | Failure reporting | Failed preview/apply persists failure artifacts and updates simulated PR comments. |
 | Audit/locks | Apply outcomes have audit records; finished/blocked runs leave no lock holder or queue entry. |
-| Local S3 contract | Missing objects, overwrite, conditional create/update, concurrent create, recursive listing, and deletion use the real S3 adapter over HTTP. |
-| Local GCS contract | The same seven cases use the real GCS adapter and generation preconditions over local HTTP. |
+| Local S3 contract | Nine storage cases use the real S3 adapter over MinIO, including metadata listing and an explicit unsupported conditional-delete verdict. |
+| Local GCS contract | Eight positive cases use the real GCS adapter over `fake-gcs-server`; a ninth negative case proves the emulator ignores delete generation preconditions and is rejected by the strict contract. |
 
 - Gate tests assert that no engine command ran and engine state remained unchanged.
 - Blocked apply exits zero by Reeve's contract; the test inspects the failed gate and blocked manifest explicitly.

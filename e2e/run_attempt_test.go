@@ -24,8 +24,8 @@ func TestRunAttemptsKeepArtifactsDistinct(t *testing.T) {
 
 	first := s.runWithIdentity("preview-attempt-1.log", "preview", 500, 1, 0)
 	second := s.runWithIdentity("preview-attempt-2.log", "preview", 500, 2, 0)
-	s.require(first.RunID == "run-500-1-"+sha[:7], "first preview run ID = %q", first.RunID)
-	s.require(second.RunID == "run-500-2-"+sha[:7], "second preview run ID = %q", second.RunID)
+	s.require(first.RunID == "run-500-1-"+sha, "first preview run ID = %q", first.RunID)
+	s.require(second.RunID == "run-500-2-"+sha, "second preview run ID = %q", second.RunID)
 
 	firstManifest := readRunManifest(t, s, first.RunID)
 	secondManifest := readRunManifest(t, s, second.RunID)
@@ -41,7 +41,7 @@ func TestRunAttemptsKeepArtifactsDistinct(t *testing.T) {
 	s.write(filepath.Join(s.root, ".reeve-state", firstPlan), []byte("invalid older plan\n"), 0o600)
 	s.github.approve("", "", "")
 	apply := s.runWithIdentity("apply-attempt-2.log", "apply", 501, 2, 0)
-	s.require(apply.RunID == "apply-501-2-"+sha[:7], "apply run ID = %q", apply.RunID)
+	s.require(apply.RunID == "apply-501-2-"+sha, "apply run ID = %q", apply.RunID)
 	applyManifest := readRunManifest(t, s, apply.RunID)
 	s.require(s.stack(applyManifest).Status == "planned", "attempt-aware apply did not complete")
 	s.require(hasCommand(apply.EngineCommands, "apply "), "attempt-aware apply did not execute the saved plan")
@@ -50,7 +50,7 @@ func TestRunAttemptsKeepArtifactsDistinct(t *testing.T) {
 	s.locksReleased()
 
 	refresh := s.runWithIdentity("refresh-attempt-2.log", "refresh", 502, 2, 0)
-	s.require(refresh.RunID == "refresh-502-2-"+sha[:7], "refresh run ID = %q", refresh.RunID)
+	s.require(refresh.RunID == "refresh-502-2-"+sha, "refresh run ID = %q", refresh.RunID)
 	s.audit(refresh, "success")
 	s.locksReleased()
 
@@ -72,7 +72,7 @@ func (s *suite) runWithIdentity(logName, command string, runNumber, runAttempt, 
 	}
 	r := record{
 		Scenario: strings.TrimSuffix(logName, ".log"),
-		RunID:    fmt.Sprintf("%s-%d-%d-%s", prefix, runNumber, runAttempt, sha[:7]),
+		RunID:    fmt.Sprintf("%s-%d-%d-%s", prefix, runNumber, runAttempt, sha),
 		Log:      logName,
 	}
 	args := []string{

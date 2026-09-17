@@ -25,6 +25,7 @@ type object = map[string]any
 type githubState struct {
 	sha                      string
 	changed                  string
+	codeowners               string
 	reviews                  []object
 	comments                 []object
 	check                    string
@@ -41,7 +42,9 @@ type githubFixture struct {
 
 func newGitHub() *githubFixture {
 	return &githubFixture{state: githubState{
-		check: "success", changed: "envs/lifecycle/main.tf", reviews: []object{}, comments: []object{},
+		check: "success", changed: "envs/lifecycle/main.tf",
+		codeowners: "* @" + author + " @" + reviewer + "\n",
+		reviews:    []object{}, comments: []object{},
 		requests: map[string]int{}, unexpected: []string{},
 	}}
 }
@@ -171,7 +174,7 @@ func (g *githubFixture) route(method, path string, body object) (int, any) {
 		case prefix + "/compare/master..." + s.sha:
 			return 200, object{"behind_by": s.behind}
 		case prefix + "/contents/.github/CODEOWNERS":
-			content := base64.StdEncoding.EncodeToString([]byte("* @" + author + " @" + reviewer + "\n"))
+			content := base64.StdEncoding.EncodeToString([]byte(s.codeowners))
 			return 200, object{
 				"type": "file", "encoding": "base64", "content": content,
 				"name": "CODEOWNERS", "path": ".github/CODEOWNERS", "sha": strings.Repeat("c", 40),

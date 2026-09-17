@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   drift:
-    uses: reeveops/reeve/.github/workflows/reeve.yml@9cf21fa3de74c5c877ac72630e76e76fa12479ac
+    uses: reeveops/reeve/.github/workflows/reeve.yml@d31c814640689c2f2e1b0d02d2bc11a80a94faab
     with:
       mode: drift
       root: tf

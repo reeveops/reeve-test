@@ -103,7 +103,7 @@ run = """
 gh workflow run cloud-blob-contract.yml \
   --repo "${E2E_GITHUB_REPOSITORY:-reeveops/reeve-test}" \
   -f backend="${E2E_CLOUD_BACKEND:-all}" \
-  -f reeve-ref="${E2E_REEVE_REF:-9cf21fa3de74c5c877ac72630e76e76fa12479ac}"
+  -f reeve-ref="${E2E_REEVE_REF:-d31c814640689c2f2e1b0d02d2bc11a80a94faab}"
 """
 description = "Dispatch the configured real AWS/GCP blob contract"
 

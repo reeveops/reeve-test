@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: reeveops/reeve
-          ref: 9cf21fa3de74c5c877ac72630e76e76fa12479ac
+          ref: d31c814640689c2f2e1b0d02d2bc11a80a94faab
           path: .local/reeve-source
           persist-credentials: false
 

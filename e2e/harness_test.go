@@ -294,7 +294,7 @@ func (s *suite) runArgs(label, command string, expected int, extra ...string) (*
 	if command == "preview" {
 		prefix = "run"
 	}
-	r := record{Scenario: label, RunID: fmt.Sprintf("%s-%d-%d-%s", prefix, sequence, runAttempt, sha[:7]), Log: fmt.Sprintf("%02d-%s.log", sequence, label)}
+	r := record{Scenario: label, RunID: fmt.Sprintf("%s-%d-%d-%s", prefix, sequence, runAttempt, sha), Log: fmt.Sprintf("%02d-%s.log", sequence, label)}
 	args := []string{"run", command, "--root", s.root, "--repo", s.repo, "--pr", strconv.Itoa(s.pr), "--sha", sha, "--run-number", strconv.Itoa(sequence), "--run-attempt", strconv.Itoa(runAttempt)}
 	if command == "apply" || command == "refresh" {
 		args = append(args, "--actor", s.actor)
@@ -445,7 +445,11 @@ func (s *suite) blocked(label, gateName string) (*manifest, record) {
 	return m, r
 }
 
-func (s *suite) apply(label string, failed bool) {
+func (s *suite) apply(label string, failed bool) (*manifest, record) {
+	return s.applyArgs(label, failed)
+}
+
+func (s *suite) applyArgs(label string, failed bool, extra ...string) (*manifest, record) {
 	s.t.Helper()
 	exit, status, outcome := 0, "planned", "success"
 	if failed {
@@ -454,7 +458,7 @@ func (s *suite) apply(label string, failed bool) {
 	requestKey := fmt.Sprintf("GET /repos/%s/issues/%d/comments", s.repo, s.pr)
 	commentReadsBefore := 0
 	s.github.edit(func(g *githubState) { commentReadsBefore = g.requests[requestKey] })
-	m, r := s.run(label, "apply", exit)
+	m, r := s.runArgs(label, "apply", exit, extra...)
 	commentReadsAfter := 0
 	s.github.edit(func(g *githubState) { commentReadsAfter = g.requests[requestKey] })
 	s.require(commentReadsAfter-commentReadsBefore == 1,
@@ -473,4 +477,5 @@ func (s *suite) apply(label string, failed bool) {
 	s.require(s.appliedMarker() != failed, "%s: applied marker mismatch", label)
 	s.audit(r, outcome)
 	s.locksReleased()
+	return m, r
 }

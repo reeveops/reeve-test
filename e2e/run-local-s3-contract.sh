@@ -72,5 +72,6 @@ export REEVE_S3_CONTRACT_BUCKET=$bucket
 export REEVE_S3_CONTRACT_REGION=$AWS_REGION
 export REEVE_S3_CONTRACT_ENDPOINT="http://127.0.0.1:$port"
 export REEVE_S3_CONTRACT_PREFIX="local-${RANDOM}-${RANDOM}"
+export REEVE_S3_CONTRACT_EXPECT_CONDITIONAL_DELETE_UNSUPPORTED=true
 
 go -C "$reeve_source" test -race -count=1 -v ./internal/blob/s3 -run '^TestContract$'

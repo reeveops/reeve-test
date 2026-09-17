@@ -76,4 +76,20 @@ export STORAGE_EMULATOR_HOST="http://127.0.0.1:$port"
 export REEVE_GCS_CONTRACT_BUCKET=$bucket
 export REEVE_GCS_CONTRACT_PREFIX="local-${RANDOM}-${RANDOM}"
 
-go -C "$reeve_source" test -race -count=1 -v ./internal/blob/gcs -run '^TestContract$'
+go -C "$reeve_source" test -race -count=1 -v ./internal/blob/gcs \
+  -run '^TestContract$/^(MissingObject|PutGetOverwrite|ConditionalCreate|ConditionalUpdate|ConcurrentCreate|RecursiveList|ListMetadata|Delete)$'
+
+# fake-gcs-server 1.56.1 ignores the generation-match precondition on DELETE.
+# Require Reeve's strict contract to reject that behavior instead of treating
+# an unconditional delete as supported.
+if conditional_output=$(go -C "$reeve_source" test -race -count=1 -v ./internal/blob/gcs \
+  -run '^TestContract$/ConditionalDelete$' 2>&1); then
+  printf 'fake-gcs-server unexpectedly passed the conditional-delete contract\n' >&2
+  exit 1
+fi
+printf '%s\n' "$conditional_output"
+if ! grep -Fq 'stale DeleteIfMatch = <nil>, want ErrPreconditionFailed' <<<"$conditional_output"; then
+  printf 'conditional-delete failure did not identify the ignored generation precondition\n' >&2
+  exit 1
+fi
+printf 'fake-gcs-server conditional-delete limitation confirmed\n'
