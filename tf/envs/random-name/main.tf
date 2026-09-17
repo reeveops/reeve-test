@@ -9,7 +9,7 @@ terraform {
 
 variable "length" {
   type        = number
-  default     = 2
+  default     = 3
   description = "Number of words in the generated pet name."
 }
 
