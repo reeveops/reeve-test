@@ -27,11 +27,14 @@ jobs:
             const associations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
             const titles = new Set(['[Playground] OpenTofu', '[Playground] Terraform', '[Playground] Pulumi']);
             const confirmation = '- [x] I understand this creates a temporary playground pull request.';
-            const admitted = context.repo.owner === 'reeveops' && context.repo.repo === 'reeve-test' &&
-              associations.has(context.payload.issue.author_association) &&
-              titles.has(context.payload.issue.title) && context.payload.issue.body?.includes(confirmation);
+            const {data: issue} = await github.rest.issues.get({...context.repo, issue_number: context.issue.number});
+            const association = String(issue.author_association).toUpperCase();
+            const repository = `${context.repo.owner}/${context.repo.repo}`.toLowerCase();
+            const confirmed = Boolean(issue.body?.includes(confirmation));
+            const admitted = repository === 'reeveops/reeve-test' && associations.has(association) &&
+              titles.has(issue.title) && confirmed;
             core.setOutput('admitted', String(Boolean(admitted)));
-            if (!admitted) core.notice('Ignoring an issue that is not an admitted playground request.');
+            if (!admitted) core.notice(`Ignoring request: repository=${repository}, association=${association}, title=${JSON.stringify(issue.title)}, confirmed=${confirmed}.`);
 
       - name: Author identity
         if: steps.admission.outputs.admitted == 'true'
