@@ -135,37 +135,12 @@ func newSuiteInReport(t *testing.T, reportSubdir string) *suite {
 
 func newHCLSuiteInReport(t *testing.T, reportSubdir, engineType, engineName, engineValue string) *suite {
 	t.Helper()
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	repoRoot := filepath.Dir(cwd)
-	s := &suite{t: t, github: newGitHub(), results: []record{}, repo: repository, actor: author, pr: 1, githubMode: "simulated-loopback"}
-	s.reeve = executable(t, repoRoot, *reeveFlag)
+	s, cwd, repoRoot := newBaseSuiteInReport(t, reportSubdir)
 	s.engine = executable(t, repoRoot, engineValue)
-	report := *reportFlag
-	if report == "" {
-		report = filepath.Join(".local", "e2e", time.Now().UTC().Format("20060102T150405.000000000Z"))
-	}
-	reportRoot := absolute(repoRoot, report)
-	s.check(os.MkdirAll(filepath.Dir(reportRoot), 0700))
-	s.check(createReportRoot(reportRoot))
-	s.report = reportRoot
-	if reportSubdir != "" {
-		s.report = filepath.Join(reportRoot, reportSubdir)
-		s.check(os.Mkdir(s.report, 0700))
-	}
-	s.root = t.TempDir()
-	server := httptest.NewServer(s.github)
-	t.Cleanup(s.saveReport)
-	t.Cleanup(server.Close)
 	s.module = filepath.Join(s.root, "envs", "lifecycle")
 	s.check(os.MkdirAll(s.module, 0700))
 	config := filepath.Join(s.root, ".reeve")
-	s.check(os.Mkdir(config, 0700))
-	s.write(filepath.Join(config, "shared.yaml"), s.read(filepath.Join(cwd, "fixtures", "shared.yaml")), 0600)
 	s.write(filepath.Join(s.module, "main.tf"), s.read(filepath.Join(cwd, "fixtures", "main.tf")), 0600)
-	s.trace = filepath.Join(s.root, "engine-invocations.log")
 	wrapper := filepath.Join(s.root, engineType+"-traced")
 	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'" }
 	s.write(wrapper, []byte("#!/bin/sh\nset -eu\nprintf '%s\\n' \"$*\" >> "+quote(s.trace)+"\nexec "+quote(s.engine)+" \"$@\"\n"), 0700)
@@ -186,6 +161,39 @@ engine:
     preview_timeout: 1m
     apply_timeout: 1m
 `, engineType, wrapperJSON)), 0600)
+	t.Logf("Reeve: %s\n%s: %s\nReports: %s", s.reeve, engineName, s.engine, s.report)
+	return s
+}
+
+func newBaseSuiteInReport(t *testing.T, reportSubdir string) (*suite, string, string) {
+	t.Helper()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	repoRoot := filepath.Dir(cwd)
+	s := &suite{t: t, github: newGitHub(), results: []record{}, repo: repository, actor: author, pr: 1, githubMode: "simulated-loopback"}
+	s.reeve = executable(t, repoRoot, *reeveFlag)
+	report := *reportFlag
+	if report == "" {
+		report = filepath.Join(".local", "e2e", time.Now().UTC().Format("20060102T150405.000000000Z"))
+	}
+	reportRoot := absolute(repoRoot, report)
+	s.check(os.MkdirAll(filepath.Dir(reportRoot), 0700))
+	s.check(createReportRoot(reportRoot))
+	s.report = reportRoot
+	if reportSubdir != "" {
+		s.report = filepath.Join(reportRoot, reportSubdir)
+		s.check(os.Mkdir(s.report, 0700))
+	}
+	s.root = t.TempDir()
+	server := httptest.NewServer(s.github)
+	t.Cleanup(s.saveReport)
+	t.Cleanup(server.Close)
+	config := filepath.Join(s.root, ".reeve")
+	s.check(os.Mkdir(config, 0700))
+	s.write(filepath.Join(config, "shared.yaml"), s.read(filepath.Join(cwd, "fixtures", "shared.yaml")), 0600)
+	s.trace = filepath.Join(s.root, "engine-invocations.log")
 	testHome := filepath.Join(s.root, "home")
 	s.check(os.Mkdir(testHome, 0700))
 	s.env = []string{
@@ -195,8 +203,7 @@ engine:
 		"TMPDIR=" + s.root, "LANG=C.UTF-8", "NO_COLOR=1", "CI=true",
 		"GITHUB_API_URL=" + server.URL + "/api/v3/", "GITHUB_TOKEN=" + dummyToken,
 	}
-	t.Logf("Reeve: %s\n%s: %s\nReports: %s", s.reeve, engineName, s.engine, s.report)
-	return s
+	return s, cwd, repoRoot
 }
 
 func createReportRoot(path string) error {

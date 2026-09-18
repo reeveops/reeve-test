@@ -56,8 +56,12 @@ func TestPulumiLifecycle(t *testing.T) {
 }
 
 func newPulumiSuite(t *testing.T) *suite {
+	return newPulumiSuiteInReport(t, "pulumi-lifecycle")
+}
+
+func newPulumiSuiteInReport(t *testing.T, reportSubdir string) *suite {
 	t.Helper()
-	s := newSuiteInReport(t, "pulumi-lifecycle")
+	s, _, repoRoot := newBaseSuiteInReport(t, reportSubdir)
 	t.Cleanup(func() {
 		// Go module cache directories are read-only by default. Pulumi can
 		// create one under Reeve's isolated CI home, so restore directory
@@ -69,9 +73,6 @@ func newPulumiSuite(t *testing.T) *suite {
 			return nil
 		})
 	})
-	cwd, err := os.Getwd()
-	s.check(err)
-	repoRoot := filepath.Dir(cwd)
 	s.engine = executable(t, repoRoot, *pulumiFlag)
 	s.module = filepath.Join(s.root, "envs", "pulumi")
 	s.check(os.MkdirAll(s.module, 0700))
@@ -117,7 +118,6 @@ runtime:
 	backendJSON, err := json.Marshal(backendURL)
 	s.check(err)
 	config := filepath.Join(s.root, ".reeve")
-	s.check(os.Remove(filepath.Join(config, "tofu.yaml")))
 	s.write(filepath.Join(config, "pulumi.yaml"), []byte(fmt.Sprintf(`version: 1
 config_type: engine
 engine:

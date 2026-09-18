@@ -1,0 +1,17 @@
+name: Try Reeve with OpenTofu
+description: Start a disposable guided Reeve playground using local OpenTofu state.
+title: "[Playground] OpenTofu"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reeve will create a temporary pull request and guide you through preview, approvals, apply, locks, failures, and break-glass.
+
+        The session creates no cloud resources and closes automatically.
+  - type: checkboxes
+    id: start
+    attributes:
+      label: Start the session
+      options:
+        - label: I understand this creates a temporary playground pull request.
+          required: true

@@ -17,6 +17,9 @@ permissions:
 
 jobs:
   reeve:
+    if: >-
+      !(github.event_name == 'pull_request' && startsWith(github.head_ref, 'reeve-playground/')) &&
+      !(github.event_name == 'issue_comment' && contains(github.event.issue.labels.*.name, 'reeve-playground'))
     uses: reeveops/reeve/.github/workflows/reeve.yml@d31c814640689c2f2e1b0d02d2bc11a80a94faab
     with:
       mode: gitops

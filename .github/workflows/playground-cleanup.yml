@@ -1,0 +1,76 @@
+name: Cleanup Reeve Playgrounds
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: reeve-playground-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    if: github.repository == 'reeveops/reeve-test'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Author identity
+        id: author
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ vars.E2E_AUTHOR_APP_ID }}
+          private-key: ${{ secrets.E2E_AUTHOR_PRIVATE_KEY }}
+          owner: reeveops
+          repositories: reeve-test
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Close and delete stranded sessions
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ${{ steps.author.outputs.token }}
+          script: |
+            const pulls = await github.paginate(github.rest.pulls.list, {...context.repo, state: 'open', per_page: 100});
+            const candidates = pulls.filter(pr => pr.labels.some(label => label.name === 'reeve-playground'));
+            const result = {discovered: candidates.length, closed: 0, deleted: 0, skipped: 0, failed: 0};
+            for (const pr of candidates) {
+              try {
+                const owned = pr.base.ref === 'master' && pr.head.repo?.full_name === 'reeveops/reeve-test' &&
+                  pr.head.ref.startsWith('reeve-playground/') && pr.user?.login === 'reeve-e2e-author[bot]' &&
+                  pr.body?.includes('<!-- reeve:playground-session:v1 -->');
+                if (!owned) {
+                  result.skipped++;
+                  core.warning(`Skipping unowned labelled PR #${pr.number}`);
+                  continue;
+                }
+                const files = await github.paginate(github.rest.pulls.listFiles, {...context.repo, pull_number: pr.number, per_page: 100});
+                if (files.length !== 1 || !/^playground\/(opentofu|terraform|pulumi)\.yaml$/.test(files[0].filename)) {
+                  result.skipped++;
+                  core.warning(`Skipping PR #${pr.number} with an unexpected diff`);
+                  continue;
+                }
+                await github.rest.pulls.update({...context.repo, pull_number: pr.number, state: 'closed'});
+                result.closed++;
+                try {
+                  await github.rest.git.deleteRef({...context.repo, ref: `heads/${pr.head.ref}`});
+                  result.deleted++;
+                } catch (error) {
+                  if (error.status !== 404 && error.status !== 422) throw error;
+                }
+              } catch (error) {
+                result.failed++;
+                core.error(`Cleanup failed for PR #${pr.number}: ${error.message}`);
+              }
+            }
+            await core.summary
+              .addHeading('Reeve playground cleanup')
+              .addTable([
+                [{data: 'Discovered', header: true}, {data: 'Closed', header: true}, {data: 'Branches deleted', header: true}, {data: 'Skipped', header: true}, {data: 'Failed', header: true}],
+                [String(result.discovered), String(result.closed), String(result.deleted), String(result.skipped), String(result.failed)]
+              ]).write();
+            if (result.failed > 0) core.setFailed(`${result.failed} playground cleanup operation(s) failed`);

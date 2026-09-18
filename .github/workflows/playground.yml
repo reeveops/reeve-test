@@ -1,0 +1,197 @@
+name: Guided Reeve Playground
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Owned playground pull request number.
+        required: true
+        type: string
+      engine:
+        description: Trusted engine selector.
+        required: true
+        type: choice
+        options:
+          - opentofu
+          - terraform
+          - pulumi
+      head_sha:
+        description: Exact admitted playground head.
+        required: true
+        type: string
+      session_owner:
+        description: GitHub login allowed to drive the session.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: reeve-playground-session
+  cancel-in-progress: false
+
+jobs:
+  session:
+    if: github.repository == 'reeveops/reeve-test' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Validate admitted session
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PLAYGROUND_PR: ${{ inputs.pr }}
+          PLAYGROUND_ENGINE: ${{ inputs.engine }}
+          PLAYGROUND_SHA: ${{ inputs.head_sha }}
+          PLAYGROUND_OWNER: ${{ inputs.session_owner }}
+        with:
+          script: |
+            const pr = Number(process.env.PLAYGROUND_PR);
+            const engines = new Set(['opentofu', 'terraform', 'pulumi']);
+            if (!Number.isInteger(pr) || pr <= 0 || !engines.has(process.env.PLAYGROUND_ENGINE)) throw new Error('Invalid playground inputs');
+            if (!/^[a-f0-9]{40}$/.test(process.env.PLAYGROUND_SHA) || !/^[A-Za-z0-9-]+$/.test(process.env.PLAYGROUND_OWNER)) throw new Error('Invalid playground identity');
+            const {data} = await github.rest.pulls.get({...context.repo, pull_number: pr});
+            const labels = data.labels.map(label => label.name);
+            if (data.state !== 'open' || data.base.ref !== 'master' || data.head.sha !== process.env.PLAYGROUND_SHA ||
+                data.head.repo.full_name !== 'reeveops/reeve-test' || !data.head.ref.startsWith('reeve-playground/') ||
+                data.user.login !== 'reeve-e2e-author[bot]' ||
+                !labels.includes('reeve-playground') || !data.body?.includes('<!-- reeve:playground-session:v1 -->')) {
+              throw new Error('Playground PR ownership check failed');
+            }
+            const files = await github.paginate(github.rest.pulls.listFiles, {...context.repo, pull_number: pr, per_page: 100});
+            const selector = `playground/${process.env.PLAYGROUND_ENGINE}.yaml`;
+            if (files.length !== 1 || files[0].filename !== selector || files[0].status !== 'modified') throw new Error('Playground selector diff changed');
+            const {data: content} = await github.rest.repos.getContent({...context.repo, path: selector, ref: data.head.sha});
+            if (Array.isArray(content) || content.type !== 'file' || Buffer.from(content.content, 'base64').toString() !== 'enabled: true\n') {
+              throw new Error('Playground selector content changed');
+            }
+
+      - name: Checkout trusted harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Checkout pinned Reeve source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: reeveops/reeve
+          ref: d31c814640689c2f2e1b0d02d2bc11a80a94faab
+          path: .local/reeve-source
+          persist-credentials: false
+
+      - name: Install selected engine and Go
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4
+        with:
+          cache_save: true
+          mise_toml: |
+            [tools]
+            go = "1.26.6"
+            ${{ inputs.engine == 'opentofu' && 'opentofu = "1.12.6"' || '' }}
+            ${{ inputs.engine == 'terraform' && 'terraform = "1.16.2"' || '' }}
+            ${{ inputs.engine == 'pulumi' && 'pulumi = "3.262.0"' || '' }}
+
+      - name: Build trusted Reeve and playground controller
+        run: |
+          mise exec -- go -C .local/reeve-source build -o bin/reeve ./cmd/reeve
+          mise exec -- go test -race -tags=e2e -c -o .local/playground-e2e ./e2e
+
+      - name: Author identity
+        id: author
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ vars.E2E_AUTHOR_APP_ID }}
+          private-key: ${{ secrets.E2E_AUTHOR_PRIVATE_KEY }}
+          owner: reeveops
+          repositories: reeve-test
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Reviewer identity
+        id: reviewer
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ vars.E2E_REVIEWER_APP_ID }}
+          private-key: ${{ secrets.E2E_REVIEWER_PRIVATE_KEY }}
+          owner: reeveops
+          repositories: reeve-test
+          permission-pull-requests: write
+
+      - name: Run guided playground
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PLAYGROUND_PR: ${{ inputs.pr }}
+          PLAYGROUND_ENGINE: ${{ inputs.engine }}
+          PLAYGROUND_SHA: ${{ inputs.head_sha }}
+          PLAYGROUND_OWNER: ${{ inputs.session_owner }}
+          CONTROLLER_TOKEN: ${{ github.token }}
+          AUTHOR_TOKEN: ${{ steps.author.outputs.token }}
+          REVIEWER_TOKEN: ${{ steps.reviewer.outputs.token }}
+          REVIEWER_LOGIN: ${{ steps.reviewer.outputs.app-slug }}[bot]
+        with:
+          script: |
+            const {spawn} = require('node:child_process');
+            const input = {
+              repository: 'reeveops/reeve-test',
+              pr: Number(process.env.PLAYGROUND_PR),
+              engine: process.env.PLAYGROUND_ENGINE,
+              head_sha: process.env.PLAYGROUND_SHA,
+              session_owner: process.env.PLAYGROUND_OWNER,
+              controller_token: process.env.CONTROLLER_TOKEN,
+              author_token: process.env.AUTHOR_TOKEN,
+              reviewer_token: process.env.REVIEWER_TOKEN,
+              reviewer_login: process.env.REVIEWER_LOGIN
+            };
+            for (const token of [input.controller_token, input.author_token, input.reviewer_token]) core.setSecret(token);
+            const args = ['exec', '--', '../.local/playground-e2e',
+              '-test.run=^TestPlaygroundGitHub$', '-test.v', '-test.timeout=20m', '-playground',
+              '-reeve', '.local/reeve-source/bin/reeve', '-report-dir', 'e2e-report'];
+            if (input.engine === 'opentofu') args.push('-engine', 'tofu');
+            if (input.engine === 'terraform') args.push('-terraform', 'terraform');
+            if (input.engine === 'pulumi') args.push('-pulumi', 'pulumi');
+            const child = spawn('mise', args, {
+              cwd: `${process.env.GITHUB_WORKSPACE}/e2e`,
+              env: {PATH: process.env.PATH, HOME: process.env.HOME},
+              stdio: ['pipe', 'pipe', 'pipe']
+            });
+            child.stdout.on('data', data => core.info(data.toString()));
+            child.stderr.on('data', data => core.info(data.toString()));
+            const finished = new Promise((resolve, reject) => {
+              child.once('error', reject);
+              child.once('close', (code, signal) => resolve({code, signal}));
+            });
+            child.stdin.end(JSON.stringify(input));
+            const result = await finished;
+            if (result.code !== 0) core.setFailed(`Playground exited ${result.code}, signal ${result.signal}`);
+
+      - name: Close owned playground PR
+        if: always() && steps.author.outcome == 'success'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PLAYGROUND_PR: ${{ inputs.pr }}
+        with:
+          github-token: ${{ steps.author.outputs.token }}
+          script: |
+            const pr = Number(process.env.PLAYGROUND_PR);
+            const {data} = await github.rest.pulls.get({...context.repo, pull_number: pr});
+            if (data.base.ref !== 'master' || data.head.repo.full_name !== 'reeveops/reeve-test' ||
+                !data.head.ref.startsWith('reeve-playground/') || data.user.login !== 'reeve-e2e-author[bot]' ||
+                !data.body?.includes('<!-- reeve:playground-session:v1 -->')) {
+              throw new Error('Refusing cleanup of unowned PR');
+            }
+            if (data.state === 'open') await github.rest.pulls.update({...context.repo, pull_number: pr, state: 'closed'});
+            try {
+              await github.rest.git.deleteRef({...context.repo, ref: `heads/${data.head.ref}`});
+            } catch (error) {
+              if (error.status !== 404 && error.status !== 422) throw error;
+            }
+
+      - name: Save diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playground-${{ github.run_id }}-${{ github.run_attempt }}
+          path: e2e-report/
+          if-no-files-found: warn
+          retention-days: 7

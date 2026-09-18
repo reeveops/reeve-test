@@ -81,3 +81,34 @@ It MUST distinguish an emulator's declared conditional-delete limitation from an
 - GIVEN an emulator that silently ignores a delete precondition
 - WHEN the provider contract attempts a stale conditional delete
 - THEN the harness MUST require the strict contract to reject the emulator with the ignored-precondition diagnostic.
+
+### Requirement: Guided playground sessions
+
+The repository MUST offer collaborator-requested OpenTofu, Terraform, and Pulumi sessions through temporary App-owned pull requests.
+The controller MUST execute trusted fixtures with job-local state and MUST NOT check out or execute the temporary PR branch.
+
+#### Scenario: Start from an engine request
+
+- GIVEN a collaborator submits a valid engine request
+- WHEN the launcher handles the request
+- THEN it MUST create a uniquely named branch and PR containing only the selected enablement file.
+- AND it MUST label the PR, dispatch the controller with the admitted head SHA, and return the PR link.
+
+#### Scenario: Varied engine preview
+
+- GIVEN a selected engine and an applied initial fixture
+- WHEN the controller previews the varied fixture
+- THEN the real engine result MUST contain additions, changes, deletions, and replacements.
+
+#### Scenario: Guided security outcomes
+
+- GIVEN the session owner's commands and distinct author and reviewer Apps
+- WHEN the owner follows the progress comment
+- THEN Reeve MUST demonstrate denied approval, approved apply, changes-requested denial, lock denial, engine failure, break-glass, and convergence.
+- AND comments from another identity or outside the active stage MUST NOT advance the session.
+
+#### Scenario: Session cleanup
+
+- GIVEN a completed, failed, idle, or stranded playground session
+- WHEN controller cleanup or the nightly sweeper runs
+- THEN it MUST close only marker-validated App-owned PRs and delete only their owned branches.

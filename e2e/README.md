@@ -64,6 +64,7 @@ mise run blob:gcs-local
 | Rerun identity | Two attempts keep distinct manifests and plans; apply selects the newer snapshot, and apply/refresh retain attempt 2 after authoritative head lookup. |
 | Terraform | Separate create, update, forced replacement, no-op, delete, and saved-plan apply through the public CLI. |
 | Pulumi | Local-backend create, no-op, refresh, delete, and saved-plan apply. |
+| Playground engine output | OpenTofu, Terraform, and Pulumi each produce add, change, delete, and replace operations from trusted local-only fixtures. |
 | Approvals | CODEOWNERS, explicit lists, combined policies, and public unlisted-review opt-in exercise allowed and denied applies. Missing, self, stale, and changes-requested reviews also deny apply. |
 | Break-glass | `internal_list`, CODEOWNERS, and `anyone` exercise authorization, denial, justification, intent/completion audits, comments, state, and lock cleanup. |
 | Changed commit | Previous-head approval stops counting on a new head. |
@@ -90,6 +91,8 @@ mise run blob:gcs-local
 ## CI
 
 - [e2e-local.yml](../.github/workflows/e2e-local.yml) runs on PRs, master pushes, and manual dispatch.
+- [playground.yml](../.github/workflows/playground.yml) runs a collaborator-requested guided session without checking out its temporary PR branch.
+- [playground-cleanup.yml](../.github/workflows/playground-cleanup.yml) closes and deletes stranded App-owned sessions nightly.
 - It builds the pinned Reeve commit; manual dispatch can select a candidate commit through `reeve-ref`.
 - It grants only `contents: read` and requests no OIDC token or repository secret.
 - CI installs only the pinned tools required by the local OpenTofu, Terraform, and Pulumi fixtures.
@@ -100,8 +103,9 @@ mise run blob:gcs-local
 
 ## Boundaries and next layers
 
-- This suite covers the public Reeve CLI, real engines, the filesystem adapter, S3 and GCS adapters over local HTTP, and simulated GitHub REST responses.
-- It does not execute the composite action, real webhook routing, actual GitHub reviews, or real cloud services.
+- The local suite covers the public Reeve CLI, real engines, the filesystem adapter, S3 and GCS adapters over local HTTP, and simulated GitHub REST responses.
+- The guided and live workflows add real GitHub App reviews while keeping engine and Reeve state local to one job.
+- The suite does not execute real cloud services.
 - [Live GitHub identity tests](github-apps.md) have a separate manual workflow with two Apps and a filesystem bucket in one job.
 - Action routing remains covered separately by workflow tests; this suite owns concurrent process, heartbeat, queue, and cancellation behavior.
 - Add AWS/GCP/R2 blob contract lanes after those local checks; a blob lane is separate from the engine's workload provider.

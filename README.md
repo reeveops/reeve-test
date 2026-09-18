@@ -2,7 +2,9 @@
 
 End-to-end test fixture and public playground for
 [reeve](https://github.com/reeveops/reeve). Pulumi, Terraform, and OpenTofu projects,
-the `random` provider only, no cloud credentials, local-filesystem state.
+local-only providers, no cloud credentials, and local-filesystem state.
+
+[Try Reeve now](docs/playground.md) through a disposable guided pull request using OpenTofu, Terraform, or Pulumi with local-only state.
 
 ## Automated E2E first
 
@@ -18,6 +20,7 @@ mise run e2e
 - [Reeve Shared E2E](.github/workflows/reeve-shared.yml) exercises the pinned reusable GitOps workflow on disposable live PRs.
 - [Reeve Shared Drift E2E](.github/workflows/reeve-shared-drift.yml) exercises the same workflow in manual drift mode with OpenTofu and filesystem state.
 - [Reeve Shared Maintenance E2E](.github/workflows/reeve-shared-maintenance.yml) exercises the same workflow in manual maintenance mode without installing an IaC engine.
+- [Guided playground](docs/playground.md) creates an App-owned PR and exercises approval, denial, locking, failure, break-glass, and cleanup with the selected local engine.
 - [Cloud Blob Contract](.github/workflows/cloud-blob-contract.yml) runs the same storage contract against trusted AWS and GCP buckets with federated credentials.
 - Read [E2E setup and limits](e2e/README.md) and [live GitHub identity setup](e2e/github-apps.md).
 - Read [cloud bucket setup](e2e/cloud-buckets.md) before enabling AWS or GCP contract runs.
