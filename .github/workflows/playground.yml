@@ -32,6 +32,7 @@ permissions:
 
 concurrency:
   group: reeve-playground-session
+  queue: max
   cancel-in-progress: false
 
 jobs:

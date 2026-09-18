@@ -36,7 +36,8 @@ The controller keeps one progress comment updated with the next command. Command
 - The workflow never checks out or executes the playground PR branch.
 - A session stops after five idle minutes or twenty total minutes.
 - The PR closes when the session finishes or expires.
-- A nightly cleanup workflow closes stranded PRs carrying the `reeve-playground` label.
+- A nightly cleanup workflow closes expired, stranded PRs carrying the `reeve-playground` label.
+- Active and queued controller runs survive cleanup, and up to 100 sessions can wait for the single playground runner.
 
 The first version accepts repository collaborators. Public admission will remain disabled until Actions-minute quotas and abuse controls are defined.
 
@@ -63,6 +64,6 @@ Commands from another stage get an immediate reply with the command currently ex
 
 The session closes its PR when complete. `/playground finish` closes it immediately.
 
-If a runner stops before cleanup, the nightly sweeper closes the labelled PR and deletes its App-owned branch.
+If a runner stops before cleanup, the nightly sweeper closes the expired labelled PR and deletes its App-owned branch.
 
 After the tour, use Reeve's reusable workflow guide to add the same flow to a real repository.

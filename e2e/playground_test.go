@@ -110,6 +110,61 @@ func TestPlaygroundCommandAccepted(t *testing.T) {
 	}
 }
 
+func TestPlaygroundCommentsPaginateAndCommandsDoNotReplay(t *testing.T) {
+	t.Parallel()
+	pageOne := make([]playgroundComment, 100)
+	for i := range pageOne {
+		pageOne[i].ID = int64(i + 1)
+		pageOne[i].Body = "unrelated"
+		pageOne[i].User.Login = "someone-else"
+		pageOne[i].User.Type = "User"
+	}
+	pageTwo := []playgroundComment{
+		{ID: 101, Body: "/playground finish", User: struct {
+			Login string `json:"login"`
+			Type  string `json:"type"`
+		}{Login: "session-owner", Type: "Bot"}},
+		{ID: 102, Body: "/playground help", User: struct {
+			Login string `json:"login"`
+			Type  string `json:"type"`
+		}{Login: "session-owner", Type: "User"}},
+		{ID: 103, Body: "/playground finish", User: struct {
+			Login string `json:"login"`
+			Type  string `json:"type"`
+		}{Login: "session-owner", Type: "User"}},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") == "1" {
+			_ = json.NewEncoder(w).Encode(pageOne)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(pageTwo)
+	}))
+	defer server.Close()
+
+	api := newLiveAPI("reeveops/reeve-test", "fixture-token")
+	api.base = server.URL
+	p := &playgroundController{s: &suite{t: t}, controller: api, input: playgroundInput{PR: 7, SessionOwner: "session-owner"}}
+	comments := p.comments()
+	if len(comments) != 103 {
+		t.Fatalf("comments() returned %d comments, want 103", len(comments))
+	}
+
+	command, accepted := nextPlaygroundCommand(comments, p.input.SessionOwner, &p.lastRead, "/reeve apply")
+	if command != "/playground help" || accepted || p.lastRead != 102 {
+		t.Fatalf("first command = (%q, %t), lastRead=%d; want help, false, 102", command, accepted, p.lastRead)
+	}
+	command, accepted = nextPlaygroundCommand(comments, p.input.SessionOwner, &p.lastRead, "/reeve apply")
+	if command != "/playground finish" || accepted || p.lastRead != 103 {
+		t.Fatalf("second command = (%q, %t), lastRead=%d; want finish, false, 103", command, accepted, p.lastRead)
+	}
+	command, _ = nextPlaygroundCommand(comments, p.input.SessionOwner, &p.lastRead, "/reeve apply")
+	if command != "" {
+		t.Fatalf("replayed command %q", command)
+	}
+}
+
 func parsePlaygroundCommand(body string) string {
 	command := strings.TrimSpace(strings.ReplaceAll(body, "\r\n", "\n"))
 	if command == "" || strings.Contains(command, "\n") {
@@ -140,6 +195,23 @@ func playgroundCommandAccepted(command string, allowed ...string) (string, bool)
 		}
 	}
 	return command, false
+}
+
+func nextPlaygroundCommand(comments []playgroundComment, owner string, lastRead *int64, allowed ...string) (string, bool) {
+	for _, comment := range comments {
+		if comment.ID <= *lastRead {
+			continue
+		}
+		*lastRead = comment.ID
+		if comment.User.Login != owner || comment.User.Type == "Bot" {
+			continue
+		}
+		command := parsePlaygroundCommand(comment.Body)
+		if command != "" {
+			return playgroundCommandAccepted(command, allowed...)
+		}
+	}
+	return "", false
 }
 
 func TestPlaygroundGitHub(t *testing.T) {
@@ -359,9 +431,18 @@ func (p *playgroundController) captureExistingComments() {
 
 func (p *playgroundController) comments() []playgroundComment {
 	p.s.t.Helper()
+	const perPage = 100
 	var comments []playgroundComment
-	p.s.check(p.controller.call(p.s.t.Context(), http.MethodGet,
-		fmt.Sprintf("/issues/%d/comments?per_page=100", p.input.PR), nil, &comments))
+	for page := 1; page <= 100; page++ {
+		var batch []playgroundComment
+		p.s.check(p.controller.call(p.s.t.Context(), http.MethodGet,
+			fmt.Sprintf("/issues/%d/comments?per_page=%d&page=%d", p.input.PR, perPage, page), nil, &batch))
+		comments = append(comments, batch...)
+		if len(batch) < perPage {
+			return comments
+		}
+	}
+	p.s.require(false, "Playground PR exceeded 10,000 comments")
 	return comments
 }
 
@@ -388,28 +469,19 @@ func (p *playgroundController) wait(stage, instruction string, allowed ...string
 	p.progress(stage, instruction)
 	deadline := time.Now().Add(5 * time.Minute)
 	for time.Now().Before(deadline) {
-		for _, comment := range p.comments() {
-			if comment.ID <= p.lastRead {
-				continue
-			}
-			p.lastRead = comment.ID
-			if comment.User.Login != p.input.SessionOwner || comment.User.Type == "Bot" {
-				continue
-			}
-			command, accepted := playgroundCommandAccepted(parsePlaygroundCommand(comment.Body), allowed...)
-			switch command {
-			case "/playground help":
-				p.progress(stage, instruction)
-			case "/playground finish":
-				p.progress("Finished", "The session was stopped. Cleanup is closing this PR.")
+		command, accepted := nextPlaygroundCommand(p.comments(), p.input.SessionOwner, &p.lastRead, allowed...)
+		switch command {
+		case "/playground help":
+			p.progress(stage, instruction)
+		case "/playground finish":
+			p.progress("Finished", "The session was stopped. Cleanup is closing this PR.")
+			return command
+		default:
+			if accepted {
 				return command
-			default:
-				if accepted {
-					return command
-				}
-				if command != "" {
-					p.progress(stage, "That command does not advance this stage. "+instruction)
-				}
+			}
+			if command != "" {
+				p.progress(stage, "That command does not advance this stage. "+instruction)
 			}
 		}
 		time.Sleep(2 * time.Second)

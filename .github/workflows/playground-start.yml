@@ -11,7 +11,8 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: playground-start-${{ github.event.issue.user.login }}
+  group: playground-start
+  queue: max
   cancel-in-progress: false
 
 jobs:
@@ -19,6 +20,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - name: Checkout trusted admission logic
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
       - name: Validate request
         id: admission
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
@@ -29,12 +35,30 @@ jobs:
             const confirmation = '- [x] I understand this creates a temporary playground pull request.';
             const {data: issue} = await github.rest.issues.get({...context.repo, issue_number: context.issue.number});
             const {data: access} = await github.rest.repos.getCollaboratorPermissionLevel({...context.repo, username: issue.user.login});
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              ...context.repo, workflow_id: 'playground.yml', event: 'workflow_dispatch', per_page: 100
+            });
+            const {playgroundCapacity} = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/playground-cleanup.js`);
             const repository = `${context.repo.owner}/${context.repo.repo}`.toLowerCase();
             const confirmed = Boolean(issue.body?.includes(confirmation));
+            const capacity = playgroundCapacity(runs);
             const admitted = repository === 'reeveops/reeve-test' && permissions.has(access.permission) &&
-              titles.has(issue.title) && confirmed;
+              titles.has(issue.title) && confirmed && capacity;
             core.setOutput('admitted', String(Boolean(admitted)));
-            if (!admitted) core.notice(`Ignoring request: repository=${repository}, permission=${access.permission}, title=${JSON.stringify(issue.title)}, confirmed=${confirmed}.`);
+            core.setOutput('reason', capacity ? 'invalid' : 'capacity');
+            if (!admitted) core.notice(`Ignoring request: repository=${repository}, permission=${access.permission}, title=${JSON.stringify(issue.title)}, confirmed=${confirmed}, capacity=${capacity}.`);
+
+      - name: Report full playground queue
+        if: steps.admission.outputs.reason == 'capacity'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: 'The guided playground queue is full, so no pull request was created. Open a new playground request after an active session finishes.'
+            });
+            await github.rest.issues.update({...context.repo, issue_number: context.issue.number, state: 'closed'});
 
       - name: Author identity
         if: steps.admission.outputs.admitted == 'true'
@@ -70,6 +94,7 @@ jobs:
             const repo = context.repo.repo;
             const branch = `reeve-playground/${context.payload.issue.number}-${context.runId}-${process.env.GITHUB_RUN_ATTEMPT}`;
             const selector = `playground/${engine}.yaml`;
+            const expiresAt = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
             let created = false;
             try {
               const {data: base} = await github.rest.git.getRef({owner, repo, ref: 'heads/master'});
@@ -85,13 +110,14 @@ jobs:
               const {data: pr} = await github.rest.pulls.create({
                 owner, repo, base: 'master', head: branch,
                 title: `Reeve playground: ${engine}`,
-                body: `<!-- reeve:playground-session:v1 -->\n## Reeve playground is starting\n\nRequested by @${context.payload.issue.user.login} from #${context.payload.issue.number}.\n\nReeve is preparing the trusted ${engine} runner. It will post a guided progress comment after setup and the initial preview finish.\n\n[View playground workflow](https://github.com/reeveops/reeve-test/actions/workflows/playground.yml)\n\nThis PR is temporary and will close automatically.`
+                body: `<!-- reeve:playground-session:v1 -->\n<!-- reeve:playground-expires-at:${expiresAt} -->\n## Reeve playground is starting\n\nRequested by @${context.payload.issue.user.login} from #${context.payload.issue.number}.\n\nReeve is preparing the trusted ${engine} runner. It will post a guided progress comment after setup and the initial preview finishes.\n\n[View playground workflow](https://github.com/reeveops/reeve-test/actions/workflows/playground.yml)\n\nThis PR is temporary and will close automatically.`
               });
               core.setOutput('engine', engine);
               core.setOutput('branch', branch);
               core.setOutput('pr', String(pr.number));
               core.setOutput('sha', pr.head.sha);
               core.setOutput('url', pr.html_url);
+              core.setOutput('expires_at', expiresAt);
             } catch (error) {
               if (created) {
                 try { await github.rest.git.deleteRef({owner, repo, ref: `heads/${branch}`}); } catch (_) {}
@@ -125,6 +151,7 @@ jobs:
           PLAYGROUND_PR: ${{ steps.fixture.outputs.pr }}
           PLAYGROUND_SHA: ${{ steps.fixture.outputs.sha }}
           PLAYGROUND_URL: ${{ steps.fixture.outputs.url }}
+          PLAYGROUND_EXPIRES_AT: ${{ steps.fixture.outputs.expires_at }}
         with:
           script: |
             const pr = Number(process.env.PLAYGROUND_PR);
@@ -142,6 +169,7 @@ jobs:
             try {
               const expectedTitle = `Reeve playground #${pr} · ${engine}`;
               let runURL = 'https://github.com/reeveops/reeve-test/actions/workflows/playground.yml';
+              let runID = '';
               for (let attempt = 0; attempt < 15; attempt++) {
                 const {data} = await github.rest.actions.listWorkflowRuns({
                   ...context.repo, workflow_id: 'playground.yml', event: 'workflow_dispatch', branch: 'master', per_page: 20
@@ -150,11 +178,13 @@ jobs:
                   candidate.display_title === expectedTitle && Date.parse(candidate.created_at) >= dispatchedAt - 10000);
                 if (run) {
                   runURL = run.html_url;
+                  runID = String(run.id);
                   break;
                 }
                 await new Promise(resolve => setTimeout(resolve, 1000));
               }
-              const body = `<!-- reeve:playground-session:v1 -->\n## Guided Reeve playground\n\nRequested by @${context.payload.issue.user.login} from #${context.payload.issue.number}.\n\nReeve posts and updates a guided progress comment after the trusted ${engine} runner completes setup and its initial preview.\n\n[Watch the controller run](${runURL})\n\nThis PR is temporary and will close automatically.`;
+              const runMarker = runID ? `\n<!-- reeve:playground-run:${runID} -->` : '';
+              const body = `<!-- reeve:playground-session:v1 -->\n<!-- reeve:playground-expires-at:${process.env.PLAYGROUND_EXPIRES_AT} -->${runMarker}\n## Guided Reeve playground\n\nRequested by @${context.payload.issue.user.login} from #${context.payload.issue.number}.\n\nReeve posts and updates a guided progress comment after the trusted ${engine} runner completes setup and its initial preview.\n\n[Watch the controller run](${runURL})\n\nThis PR is temporary and will close automatically.`;
               await github.rest.pulls.update({...context.repo, pull_number: pr, body});
               await github.rest.issues.createComment({
                 ...context.repo, issue_number: context.payload.issue.number,

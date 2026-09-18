@@ -123,8 +123,11 @@ run = "bash e2e/run-local-blob-contracts.sh"
 description = "Run the local S3 and GCS adapter contracts concurrently"
 
 [tasks."e2e:scripts"]
-run = "bash -n e2e/run-local-blob-contracts.sh e2e/run-local-s3-contract.sh e2e/run-local-gcs-contract.sh e2e/bootstrap/configure-github.sh"
-description = "Validate E2E shell scripts"
+run = """
+bash -n e2e/run-local-blob-contracts.sh e2e/run-local-s3-contract.sh e2e/run-local-gcs-contract.sh e2e/bootstrap/configure-github.sh
+node --test .github/scripts/*.test.js
+"""
+description = "Validate E2E shell scripts and playground lifecycle logic"
 
 # ── reeve against the fixture ──────────────────────────────────────────
 
