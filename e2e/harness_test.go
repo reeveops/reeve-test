@@ -302,7 +302,10 @@ func (s *suite) runArgs(label, command string, expected int, extra ...string) (*
 		prefix = "run"
 	}
 	r := record{Scenario: label, RunID: fmt.Sprintf("%s-%d-%d-%s", prefix, sequence, runAttempt, sha), Log: fmt.Sprintf("%02d-%s.log", sequence, label)}
-	args := []string{"run", command, "--root", s.root, "--repo", s.repo, "--pr", strconv.Itoa(s.pr), "--sha", sha, "--run-number", strconv.Itoa(sequence), "--run-attempt", strconv.Itoa(runAttempt)}
+	args := []string{"run", command, "--root", s.root, "--repo", s.repo, "--pr", strconv.Itoa(s.pr), "--sha", sha}
+	if command != "explain" {
+		args = append(args, "--run-number", strconv.Itoa(sequence), "--run-attempt", strconv.Itoa(runAttempt))
+	}
 	if command == "apply" || command == "refresh" {
 		args = append(args, "--actor", s.actor)
 	}

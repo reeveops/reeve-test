@@ -140,10 +140,15 @@ func TestPlaygroundEngineShowcase(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s := tc.newSuite(t)
 			configurePlaygroundFixture(s, tc.engine)
+			stack := "playground/default"
+			if tc.engine == "pulumi" {
+				stack = "reeve-e2e-pulumi/dev"
+			}
 			s.newHead(tc.name + "-playground-initial")
 			m, _ := s.run(tc.name+"-playground-initial-preview", "preview", 0)
 			initial := s.stack(m)
 			s.require(initial.Counts.Add > 0, "Initial playground preview has no additions: %+v", initial.Counts)
+			s.runArgs(tc.name+"-playground-explain", "explain", 0, "--stack", stack)
 			s.github.approve("", "", "")
 			if tc.engine == "pulumi" {
 				s.pulumiApply(tc.name + "-playground-initial-apply")
@@ -162,10 +167,6 @@ func TestPlaygroundEngineShowcase(t *testing.T) {
 			s.require(varied.Add > 0 && varied.Change > 0 && varied.Delete > 0 && varied.Replace > 0,
 				"Varied playground preview did not show every operation: %+v", varied)
 			s.github.approve("", "", "")
-			stack := "playground/default"
-			if tc.engine == "pulumi" {
-				stack = "reeve-e2e-pulumi/dev"
-			}
 			controller := &playgroundController{s: s, stack: stack}
 			controller.seedLock()
 			controller.blockedByExistingLock()
@@ -364,7 +365,7 @@ func (p *playgroundController) runTour() {
 	if p.wait("Preview", fmt.Sprintf("Inspect Reeve's preview comment, then run `/reeve explain %s`.", p.stack), "/reeve explain "+p.stack) == "/playground finish" {
 		return
 	}
-	p.s.runArgs("playground-explain", "explain", 0, p.stack)
+	p.s.runArgs("playground-explain", "explain", 0, "--stack", p.stack)
 
 	if p.wait("Denied apply", "Run `/reeve apply`. Approval policy should block it before the engine runs.", "/reeve apply") == "/playground finish" {
 		return
