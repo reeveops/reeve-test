@@ -24,17 +24,17 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
-            const associations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+            const permissions = new Set(['admin', 'maintain', 'write']);
             const titles = new Set(['[Playground] OpenTofu', '[Playground] Terraform', '[Playground] Pulumi']);
             const confirmation = '- [x] I understand this creates a temporary playground pull request.';
             const {data: issue} = await github.rest.issues.get({...context.repo, issue_number: context.issue.number});
-            const association = String(issue.author_association).toUpperCase();
+            const {data: access} = await github.rest.repos.getCollaboratorPermissionLevel({...context.repo, username: issue.user.login});
             const repository = `${context.repo.owner}/${context.repo.repo}`.toLowerCase();
             const confirmed = Boolean(issue.body?.includes(confirmation));
-            const admitted = repository === 'reeveops/reeve-test' && associations.has(association) &&
+            const admitted = repository === 'reeveops/reeve-test' && permissions.has(access.permission) &&
               titles.has(issue.title) && confirmed;
             core.setOutput('admitted', String(Boolean(admitted)));
-            if (!admitted) core.notice(`Ignoring request: repository=${repository}, association=${association}, title=${JSON.stringify(issue.title)}, confirmed=${confirmed}.`);
+            if (!admitted) core.notice(`Ignoring request: repository=${repository}, permission=${access.permission}, title=${JSON.stringify(issue.title)}, confirmed=${confirmed}.`);
 
       - name: Author identity
         if: steps.admission.outputs.admitted == 'true'
