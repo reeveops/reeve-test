@@ -16,16 +16,25 @@ concurrency:
 
 jobs:
   start:
-    if: >-
-      github.repository == 'reeveops/reeve-test' &&
-      (github.event.issue.author_association == 'OWNER' ||
-       github.event.issue.author_association == 'MEMBER' ||
-       github.event.issue.author_association == 'COLLABORATOR') &&
-      startsWith(github.event.issue.title, '[Playground] ')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - name: Validate request
+        id: admission
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const associations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+            const titles = new Set(['[Playground] OpenTofu', '[Playground] Terraform', '[Playground] Pulumi']);
+            const confirmation = '- [x] I understand this creates a temporary playground pull request.';
+            const admitted = context.repo.owner === 'reeveops' && context.repo.repo === 'reeve-test' &&
+              associations.has(context.payload.issue.author_association) &&
+              titles.has(context.payload.issue.title) && context.payload.issue.body?.includes(confirmation);
+            core.setOutput('admitted', String(Boolean(admitted)));
+            if (!admitted) core.notice('Ignoring an issue that is not an admitted playground request.');
+
       - name: Author identity
+        if: steps.admission.outputs.admitted == 'true'
         id: author
         uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
         with:
@@ -37,6 +46,7 @@ jobs:
           permission-pull-requests: write
 
       - name: Create owned playground PR
+        if: steps.admission.outputs.admitted == 'true'
         id: fixture
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
@@ -87,6 +97,7 @@ jobs:
             }
 
       - name: Label PR and close request
+        if: steps.admission.outputs.admitted == 'true'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           PLAYGROUND_ENGINE: ${{ steps.fixture.outputs.engine }}
@@ -112,6 +123,7 @@ jobs:
             await github.rest.issues.update({owner, repo, issue_number: context.payload.issue.number, state: 'closed'});
 
       - name: Start guided session
+        if: steps.admission.outputs.admitted == 'true'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           PLAYGROUND_ENGINE: ${{ steps.fixture.outputs.engine }}
