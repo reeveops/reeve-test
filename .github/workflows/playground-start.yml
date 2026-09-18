@@ -85,7 +85,7 @@ jobs:
               const {data: pr} = await github.rest.pulls.create({
                 owner, repo, base: 'master', head: branch,
                 title: `Reeve playground: ${engine}`,
-                body: `<!-- reeve:playground-session:v1 -->\nRequested by @${context.payload.issue.user.login} from #${context.payload.issue.number}.\n\nFollow the guided progress comment. This PR is temporary and will close automatically.`
+                body: `<!-- reeve:playground-session:v1 -->\n## Reeve playground is starting\n\nRequested by @${context.payload.issue.user.login} from #${context.payload.issue.number}.\n\nReeve is preparing the trusted ${engine} runner. It will post a guided progress comment after setup and the initial preview finish.\n\n[View playground workflow](https://github.com/reeveops/reeve-test/actions/workflows/playground.yml)\n\nThis PR is temporary and will close automatically.`
               });
               core.setOutput('engine', engine);
               core.setOutput('branch', branch);
@@ -99,14 +99,11 @@ jobs:
               throw error;
             }
 
-      - name: Label PR and close request
+      - name: Label playground PR
         if: steps.admission.outputs.admitted == 'true'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
-          PLAYGROUND_ENGINE: ${{ steps.fixture.outputs.engine }}
           PLAYGROUND_PR: ${{ steps.fixture.outputs.pr }}
-          PLAYGROUND_SHA: ${{ steps.fixture.outputs.sha }}
-          PLAYGROUND_URL: ${{ steps.fixture.outputs.url }}
         with:
           script: |
             const owner = context.repo.owner;
@@ -119,11 +116,6 @@ jobs:
               if (error.status !== 422) throw error;
             }
             await github.rest.issues.addLabels({owner, repo, issue_number: pr, labels: ['reeve-playground']});
-            await github.rest.issues.createComment({
-              owner, repo, issue_number: context.payload.issue.number,
-              body: `Your guided Reeve playground is ready: ${process.env.PLAYGROUND_URL}`
-            });
-            await github.rest.issues.update({owner, repo, issue_number: context.payload.issue.number, state: 'closed'});
 
       - name: Start guided session
         if: steps.admission.outputs.admitted == 'true'
@@ -132,17 +124,46 @@ jobs:
           PLAYGROUND_ENGINE: ${{ steps.fixture.outputs.engine }}
           PLAYGROUND_PR: ${{ steps.fixture.outputs.pr }}
           PLAYGROUND_SHA: ${{ steps.fixture.outputs.sha }}
+          PLAYGROUND_URL: ${{ steps.fixture.outputs.url }}
         with:
           script: |
+            const pr = Number(process.env.PLAYGROUND_PR);
+            const engine = process.env.PLAYGROUND_ENGINE;
+            const dispatchedAt = Date.now();
             await github.rest.actions.createWorkflowDispatch({
               ...context.repo, workflow_id: 'playground.yml', ref: 'master',
               inputs: {
-                pr: process.env.PLAYGROUND_PR,
-                engine: process.env.PLAYGROUND_ENGINE,
+                pr: String(pr),
+                engine,
                 head_sha: process.env.PLAYGROUND_SHA,
                 session_owner: context.payload.issue.user.login
               }
             });
+            try {
+              const expectedTitle = `Reeve playground #${pr} · ${engine}`;
+              let runURL = 'https://github.com/reeveops/reeve-test/actions/workflows/playground.yml';
+              for (let attempt = 0; attempt < 15; attempt++) {
+                const {data} = await github.rest.actions.listWorkflowRuns({
+                  ...context.repo, workflow_id: 'playground.yml', event: 'workflow_dispatch', branch: 'master', per_page: 20
+                });
+                const run = data.workflow_runs.find(candidate =>
+                  candidate.display_title === expectedTitle && Date.parse(candidate.created_at) >= dispatchedAt - 10000);
+                if (run) {
+                  runURL = run.html_url;
+                  break;
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+              const body = `<!-- reeve:playground-session:v1 -->\n## Guided Reeve playground\n\nRequested by @${context.payload.issue.user.login} from #${context.payload.issue.number}.\n\nReeve posts and updates a guided progress comment after the trusted ${engine} runner completes setup and its initial preview.\n\n[Watch the controller run](${runURL})\n\nThis PR is temporary and will close automatically.`;
+              await github.rest.pulls.update({...context.repo, pull_number: pr, body});
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: context.payload.issue.number,
+                body: `Your guided Reeve playground is ready: ${process.env.PLAYGROUND_URL}\n\nWatch setup and execution: ${runURL}`
+              });
+              await github.rest.issues.update({...context.repo, issue_number: context.payload.issue.number, state: 'closed'});
+            } catch (error) {
+              core.warning(`The playground started, but its links could not be updated: ${error.message}`);
+            }
 
       - name: Remove failed launch
         if: failure() && steps.author.outcome == 'success' && steps.fixture.outputs.pr != ''

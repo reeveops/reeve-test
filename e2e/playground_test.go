@@ -70,6 +70,46 @@ func TestPlaygroundCommandParser(t *testing.T) {
 	}
 }
 
+func TestNormalizePlaygroundCommand(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		command, want string
+	}{
+		{"/reeve up", "/reeve apply"},
+		{"/reeve plan", "/reeve preview"},
+		{"/reeve apply", "/reeve apply"},
+		{"/reeve explain playground/default", "/reeve explain playground/default"},
+		{"/playground approve", "/playground approve"},
+	} {
+		if got := normalizePlaygroundCommand(tc.command); got != tc.want {
+			t.Errorf("normalizePlaygroundCommand(%q) = %q, want %q", tc.command, got, tc.want)
+		}
+	}
+}
+
+func TestPlaygroundCommandAccepted(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		command      string
+		allowed      []string
+		wantCommand  string
+		wantAccepted bool
+	}{
+		{"apply alias", "/reeve up", []string{"/reeve apply"}, "/reeve apply", true},
+		{"wrong stage", "/reeve up", []string{"/reeve explain playground/default"}, "/reeve apply", false},
+		{"exact command", "/playground approve", []string{"/playground approve"}, "/playground approve", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			command, accepted := playgroundCommandAccepted(tc.command, tc.allowed...)
+			if command != tc.wantCommand || accepted != tc.wantAccepted {
+				t.Errorf("playgroundCommandAccepted(%q) = (%q, %t), want (%q, %t)",
+					tc.command, command, accepted, tc.wantCommand, tc.wantAccepted)
+			}
+		})
+	}
+}
+
 func parsePlaygroundCommand(body string) string {
 	command := strings.TrimSpace(strings.ReplaceAll(body, "\r\n", "\n"))
 	if command == "" || strings.Contains(command, "\n") {
@@ -79,6 +119,27 @@ func parsePlaygroundCommand(body string) string {
 		return ""
 	}
 	return command
+}
+
+func normalizePlaygroundCommand(command string) string {
+	switch command {
+	case "/reeve up":
+		return "/reeve apply"
+	case "/reeve plan":
+		return "/reeve preview"
+	default:
+		return command
+	}
+}
+
+func playgroundCommandAccepted(command string, allowed ...string) (string, bool) {
+	command = normalizePlaygroundCommand(command)
+	for _, candidate := range allowed {
+		if command == normalizePlaygroundCommand(candidate) {
+			return command, true
+		}
+	}
+	return command, false
 }
 
 func TestPlaygroundGitHub(t *testing.T) {
@@ -325,10 +386,6 @@ func (p *playgroundController) progress(stage, instruction string) {
 func (p *playgroundController) wait(stage, instruction string, allowed ...string) string {
 	p.s.t.Helper()
 	p.progress(stage, instruction)
-	accepted := map[string]bool{}
-	for _, command := range allowed {
-		accepted[command] = true
-	}
 	deadline := time.Now().Add(5 * time.Minute)
 	for time.Now().Before(deadline) {
 		for _, comment := range p.comments() {
@@ -339,7 +396,7 @@ func (p *playgroundController) wait(stage, instruction string, allowed ...string
 			if comment.User.Login != p.input.SessionOwner || comment.User.Type == "Bot" {
 				continue
 			}
-			command := parsePlaygroundCommand(comment.Body)
+			command, accepted := playgroundCommandAccepted(parsePlaygroundCommand(comment.Body), allowed...)
 			switch command {
 			case "/playground help":
 				p.progress(stage, instruction)
@@ -347,8 +404,11 @@ func (p *playgroundController) wait(stage, instruction string, allowed ...string
 				p.progress("Finished", "The session was stopped. Cleanup is closing this PR.")
 				return command
 			default:
-				if accepted[command] {
+				if accepted {
 					return command
+				}
+				if command != "" {
+					p.progress(stage, "That command does not advance this stage. "+instruction)
 				}
 			}
 		}
@@ -362,13 +422,16 @@ func (p *playgroundController) runTour() {
 	p.s.t.Helper()
 	initial, _ := p.s.run("playground-preview", "preview", 0)
 	p.s.require(p.s.stack(initial).Counts.Add > 0, "Playground preview did not contain additions")
-	if p.wait("Preview", fmt.Sprintf("Inspect Reeve's preview comment, then run `/reeve explain %s`.", p.stack), "/reeve explain "+p.stack) == "/playground finish" {
+	command := p.wait("Preview", fmt.Sprintf("Inspect Reeve's preview comment. Run `/reeve explain %s` for the decision trace, or `/reeve apply` to continue.", p.stack),
+		"/reeve explain "+p.stack, "/reeve apply")
+	if command == "/playground finish" {
 		return
 	}
-	p.s.runArgs("playground-explain", "explain", 0, "--stack", p.stack)
-
-	if p.wait("Denied apply", "Run `/reeve apply`. Approval policy should block it before the engine runs.", "/reeve apply") == "/playground finish" {
-		return
+	if command != "/reeve apply" {
+		p.s.runArgs("playground-explain", "explain", 0, "--stack", p.stack)
+		if p.wait("Denied apply", "Run `/reeve apply`. Approval policy should block it before the engine runs.", "/reeve apply") == "/playground finish" {
+			return
+		}
 	}
 	p.s.blocked("playground-denied", "approvals")
 

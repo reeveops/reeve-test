@@ -8,7 +8,9 @@ Choose an engine:
 - [Try Reeve with Terraform](https://github.com/reeveops/reeve-test/issues/new?template=playground-terraform.yml)
 - [Try Reeve with Pulumi](https://github.com/reeveops/reeve-test/issues/new?template=playground-pulumi.yml)
 
-Submit the prefilled request. Reeve Test creates and labels the playground PR, closes the request, and replies with the PR link.
+Submit the prefilled request. Reeve Test creates and labels the playground PR, closes the request, and replies with the PR and controller-run links.
+
+The PR explains that setup is running and links to the exact Actions run. Reeve posts the guided progress comment after setup and the initial preview finish.
 
 ## What you will see
 
@@ -45,14 +47,17 @@ Follow the progress comment. The tour uses these commands:
 ```text
 /reeve explain playground/default       # OpenTofu and Terraform
 /reeve explain reeve-e2e-pulumi/dev     # Pulumi
-/reeve apply
+/reeve apply                            # `/reeve up` also works
 /playground approve
 /playground request-changes
 /reeve breakglass "playground recovery" apply
 /playground finish
 ```
 
+The explain step is optional. Use `/reeve apply` or `/reeve up` after the initial preview to continue immediately.
+
 Use `/playground help` at any stage to repeat the current instruction.
+Commands from another stage get an immediate reply with the command currently expected.
 
 ## Cleanup
 

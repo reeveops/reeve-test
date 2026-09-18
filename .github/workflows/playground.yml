@@ -1,4 +1,5 @@
 name: Guided Reeve Playground
+run-name: Reeve playground #${{ inputs.pr }} · ${{ inputs.engine }}
 
 on:
   workflow_dispatch:
