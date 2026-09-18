@@ -18,8 +18,10 @@ jobs:
   start:
     if: >-
       github.repository == 'reeveops/reeve-test' &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) &&
-      contains(fromJSON('["[Playground] OpenTofu","[Playground] Terraform","[Playground] Pulumi"]'), github.event.issue.title)
+      (github.event.issue.author_association == 'OWNER' ||
+       github.event.issue.author_association == 'MEMBER' ||
+       github.event.issue.author_association == 'COLLABORATOR') &&
+      startsWith(github.event.issue.title, '[Playground] ')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
