@@ -1,51 +1,99 @@
 # Local E2E
 
-- Run the real Reeve CLI, OpenTofu, Terraform, and Pulumi against a loopback GitHub REST fixture.
-- OpenTofu uses the built-in `terraform_data` resource and local engine state.
-- Terraform runs a separate create, update, no-op, delete, and saved-plan lifecycle against the same cloud-free fixture shape.
-- Pulumi uses component resources, a prebuilt Go program, and a disposable local backend.
-- Reeve uses a separate filesystem bucket; both stores survive the scenario's commands and are deleted at completion.
-- A separate local S3 contract runs the Reeve AWS SDK adapter against disposable MinIO.
-- A separate local GCS contract runs the Reeve Google SDK adapter against `fake-gcs-server`.
+Run the real Reeve CLI with Pulumi, Terraform, and OpenTofu against a simulated GitHub API.
+The suite creates disposable projects and state, checks the results, and saves reports for inspection. It does not need GitHub, cloud, or Pulumi Cloud credentials.
+
+For projects you can edit and preview manually, use the separate [local demos](../docs/local-demos.md).
+
+## Before you begin
+
+You need Git, [mise](https://mise.jdx.dev/), and Linux or macOS. The harness uses process groups; CI runs on Ubuntu.
+Tool installation and the first Go builds need network access.
+
+The default layout is two sibling checkouts:
+
+```text
+workspace/
+├── reeve/       # source used to build bin/reeve
+└── reeve-test/  # run the commands below here
+```
+
+Follow the [first-run setup](../README.md#automated-e2e-first) if you have not cloned and trusted both repositories.
+You do not need to initialize the checked-in Pulumi stacks for this suite.
 
 ## Run
 
-From `reeve-test`, with mise installed:
+From `reeve-test`:
 
 ```bash
 mise run e2e
 ```
 
-- This builds the sibling `../reeve` checkout with that repository's Go toolchain.
-- The harness uses Go's standard library and runs with `go test -race -tags=e2e`; ordinary Go tests do not require the E2E binaries.
-- The harness uses OpenTofu 1.12.6, Terraform 1.16.2, and Pulumi 3.262.0 without changing the existing demo state.
-- Initial tool installation and building need network access; the built-in resource requires no provider download.
+This builds `../reeve` with Reeve's own toolchain, then runs the harness with the race detector.
+The task selects Pulumi 3.262.0, Terraform 1.16.2, and OpenTofu 1.12.6. The fixture programs use built-in or component resources, so they need no cloud provider download.
 
-To test an already-built candidate:
+Expect the selected scenarios to pass and report their output directories. The live and guided GitHub drivers are skipped unless explicitly enabled by their workflows.
+Missing executables, unexpected API calls, failed assertions, or timeouts make the local run fail.
+
+### Test an existing binary
+
+Skip the build when testing an already-built candidate:
 
 ```bash
 mise run e2e:run -- --reeve /absolute/path/to/reeve
 ```
 
-To select a report location:
+To choose a report directory, give a new path for each run:
 
 ```bash
-mise run e2e:run -- --report-dir .local/e2e/my-run
+mise run e2e:run -- --reeve /absolute/path/to/reeve --report-dir .local/e2e/my-run
 ```
 
-To run the S3-compatible adapter contract without AWS credentials:
+`--reeve` and `--report-dir` paths are relative to the repository root unless absolute. The report directory must not already exist.
+The optional `--engine`, `--terraform`, and `--pulumi` flags select executable names or paths for OpenTofu, Terraform, and Pulumi respectively.
+
+For a targeted test while iterating:
+
+```bash
+mise exec -- go test -race -tags=e2e -count=1 -v ./e2e \
+  -run '^TestTerraformLifecycle$' -args --reeve /absolute/path/to/reeve
+```
+
+The harness uses Go's standard library and the `e2e` build tag. Ordinary Go tests do not launch these E2E binaries.
+
+### Test local storage adapters
+
+These are separate from `mise run e2e`; CI runs both the storage contracts and the CLI suite:
 
 ```bash
 mise run blob:local
+```
+
+Or select one adapter:
+
+```bash
 mise run blob:s3-local
 mise run blob:gcs-local
 ```
 
-- `blob:local` runs both contracts concurrently and is the CI entrypoint.
+The tasks run Reeve's real S3 adapter against disposable MinIO and its GCS adapter against `fake-gcs-server`.
+They use the sibling `../reeve` source by default. `blob:local` runs both concurrently and is the CI entry point.
 
-- The report directory must not already exist.
-- Missing binaries, unexpected API calls, failed assertions, and timeouts produce a nonzero exit.
-- The harness supports Linux and macOS process groups; CI runs on Ubuntu.
+The servers and their data directories are removed when the scripts finish. The scripts use ports 19000–19099 for S3 and 19100–19199 for GCS; set `REEVE_MINIO_PORT` or `REEVE_FAKE_GCS_PORT` if needed.
+MinIO is an external AGPLv3 test tool; Reeve does not link or distribute it. `fake-gcs-server` is an external BSD-2-Clause test tool.
+
+A successful emulator run includes expected conditional-delete limitations. It does not certify those servers as suitable shared lock backends; see the coverage details below and the [real cloud contract](cloud-buckets.md).
+
+## How the fixtures work
+
+| Engine | Workload and state |
+| --- | --- |
+| Pulumi | Component resources, a prebuilt Go program, and a disposable local backend. |
+| Terraform | A separate CLI lifecycle using built-in `terraform_data` resources and local engine state. |
+| OpenTofu | Built-in `terraform_data` resources, local engine state, and the broader concurrency/gate scenarios. |
+
+Reeve uses its own filesystem bucket alongside the engine's state. Both survive the commands within a scenario and are deleted when the scenario finishes.
+The suite leaves the checked-in demos' state alone. Engine coverage varies by scenario; the table below records the assertions rather than implying every test runs on every engine.
 
 ## Coverage
 
@@ -83,31 +131,56 @@ mise run blob:gcs-local
 
 ## Reports
 
-- `.local/e2e/<timestamp>/summary.json` records per-command elapsed time, exit codes, engine invocations, and API request deltas.
-- Per-command logs, manifests, audit entries, and simulated comments aid failure diagnosis.
-- Reports exclude engine state and opaque saved plans; fixtures contain only synthetic data.
-- CI uploads `e2e-report/` for seven days, including on failure.
+Each report directory contains `summary.json` with per-command elapsed time, exit codes, engine invocations, and API request changes.
+With the default settings, reports appear under `.local/e2e/<timestamp>/`; related scenarios can have their own subdirectories.
+
+| File or output | Use it to inspect |
+| --- | --- |
+| `summary.json` | Which command failed, its exit code, and whether the engine ran. |
+| Per-command logs | Reeve and engine diagnostics. |
+| Saved manifests and audit entries | Stack outcomes, gate results, and recorded actions. |
+| Simulated PR comments | The output a user would see in GitHub. |
+
+Reports contain synthetic fixture data and exclude engine state and opaque saved plans.
+The Local E2E workflow uploads `e2e-report/` and the local blob-contract log for seven days, including on failure.
+
+### Troubleshooting
+
+| Symptom | Next step |
+| --- | --- |
+| The sibling Reeve checkout is missing | Follow the first-run setup or use `e2e:run` with `--reeve`. |
+| An executable is unavailable | Check the selected task's tools and any executable-path overrides. |
+| The report directory already exists | Choose a new path; preserve the old directory if you need its diagnostics. |
+| Apply exited zero but made no change | Inspect the manifest and gates. A blocked apply can correctly exit zero. |
+| A conditional-delete test is red in emulator logs | Read the final script result; the GCS script requires that specific limitation to be detected. An unexpected failure still fails the task. |
+| A local server cannot start | Check the script's log and choose a free port with the override above. |
+
+You can remove report directories after inspection; no cloud cleanup is needed for the local suite.
 
 ## CI
 
-- [e2e-local.yml](../.github/workflows/e2e-local.yml) runs on PRs, master pushes, and manual dispatch.
-- [playground.yml](../.github/workflows/playground.yml) runs a collaborator-requested guided session without checking out its temporary PR branch.
-- [playground-cleanup.yml](../.github/workflows/playground-cleanup.yml) closes and deletes stranded App-owned sessions nightly.
-- It builds the pinned Reeve commit; manual dispatch can select a candidate commit through `reeve-ref`.
-- It grants only `contents: read` and requests no OIDC token or repository secret.
-- CI installs only the pinned tools required by the local OpenTofu, Terraform, and Pulumi fixtures.
-- CI starts pinned MinIO and `fake-gcs-server` only for their contract steps inside the existing lifecycle job.
-- MinIO is an external AGPLv3 test tool; Reeve does not link or distribute it.
-- `fake-gcs-server` is an external BSD-2-Clause test tool.
-- Shared GitOps, drift, and maintenance callers replace the legacy direct-action demo workflows.
+[Local E2E](../.github/workflows/e2e-local.yml) runs on ordinary PRs, pushes to `master`, and manual dispatch. Owned live/playground PRs are excluded from its PR trigger.
+It builds a pinned Reeve commit; manual dispatch can choose a candidate using `reeve-ref`.
+
+That workflow has only `contents: read`, requests no OIDC token or repository secret, and installs the pinned engine and emulator tools it needs.
+See the [workflow guide](../docs/workflows.md) for the guided playground, nightly cleanup, shared callers, and live/cloud workflows; their permissions and triggers differ.
 
 ## Boundaries and next layers
 
-- The local suite covers the public Reeve CLI, real engines, the filesystem adapter, S3 and GCS adapters over local HTTP, and simulated GitHub REST responses.
-- The guided and live workflows add real GitHub App reviews while keeping engine and Reeve state local to one job.
-- The suite does not execute real cloud services.
-- [Live GitHub identity tests](github-apps.md) have a separate manual workflow with two Apps and a filesystem bucket in one job.
-- Action routing remains covered separately by workflow tests; this suite owns concurrent process, heartbeat, queue, and cancellation behavior.
-- Add AWS/GCP/R2 blob contract lanes after those local checks; a blob lane is separate from the engine's workload provider.
-- Separate GitHub events need storage shared across runners; an in-job filesystem cannot provide that.
-- `reeve` branch `feat/live-integration-harness` currently adds only `checkout-pr-head: false`; this CLI harness does not need that option.
+The local suite covers the public Reeve CLI, real engines, filesystem storage, S3/GCS adapters over local HTTP, and simulated GitHub REST responses.
+It does not execute real cloud services.
+
+[Live GitHub identity tests](github-apps.md) and the [guided playground](../docs/playground.md) add real App reviews while keeping engine and Reeve state inside one job.
+The live test also observes the shared workflow's preview and cancellation checks. Its own successful applies use the trusted harness, so that result does not establish the ordinary slash-command apply path across separate runners.
+
+The shared GitOps, drift, and maintenance callers replace the older direct-action demo workflows. Action routing and the local suite's process, heartbeat, queue, and cancellation assertions remain distinct coverage.
+The original `feat/live-integration-harness` discussion concerned a `checkout-pr-head: false` action option. This CLI harness does not need that proposal; consult the current action's inputs when adapting workflow behavior.
+
+[Real AWS/GCP storage contracts](cloud-buckets.md) are separate from engine workload providers and require configured federation and buckets.
+R2 and other providers need their own acceptance work. Separate GitHub events need shared storage; an in-job filesystem cannot provide that.
+
+## Contribute a scenario
+
+Keep a scenario's prerequisites, command, expected result, reports, and cleanup easy to find.
+Update the coverage table when assertions change, and record both the Reeve revision and harness revision with shared results.
+[Repository checks and maintenance tasks](../docs/local-demos.md#commands-and-maintenance) lists the existing contributor commands.
