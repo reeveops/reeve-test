@@ -1,163 +1,89 @@
 # reeve-test
 
-End-to-end test fixture and public playground for
-[reeve](https://github.com/reeveops/reeve). Pulumi, Terraform, and OpenTofu projects,
-local-only providers, no cloud credentials, and local-filesystem state.
+**Try Reeve and test its behavior with Pulumi, Terraform, and OpenTofu.**
 
-[Try Reeve now](docs/playground.md) through a disposable guided pull request using OpenTofu, Terraform, or Pulumi with local-only state.
+This repository is [Reeve's](https://github.com/reeveops/reeve) evolving playground and end-to-end (E2E) test harness.
+The local demos and guided tour use local state and create no cloud workload resources. Separate, optional tests exercise real GitHub identities and cloud storage.
+
+## Start here
+
+| I want to… | Start here | What I need |
+| --- | --- | --- |
+| Try Reeve in a guided pull request | [Guided playground](docs/playground.md) | Write, maintain, or admin access to this repository; no local installation. |
+| Run automated tests on my machine | [Local E2E](e2e/README.md) | Git, mise, and a Reeve checkout or binary; no GitHub or cloud credentials. |
+| Explore the checked-in projects by hand | [Local demos](docs/local-demos.md) | Reeve and the selected engine. |
+| Test real GitHub approvals | [Live GitHub setup](e2e/github-apps.md) | Repository access and two scoped GitHub Apps. |
+| Test real S3 or GCS storage | [Cloud bucket setup](e2e/cloud-buckets.md) | A disposable bucket and federated identity. |
+
+To add Reeve to your own infrastructure repository, use [Reeve's getting-started guide](https://github.com/reeveops/reeve/blob/master/docs/getting-started.md).
 
 ## Automated E2E first
 
+For a first local run, install [mise](https://mise.jdx.dev/) and clone the repositories side by side:
+
 ```bash
+git clone https://github.com/reeveops/reeve.git
+git clone https://github.com/reeveops/reeve-test.git
+cd reeve
+mise trust
+cd ../reeve-test
+mise trust
 mise run e2e
 ```
 
-- Builds sibling `../reeve` with its own toolchain and runs real Reeve/OpenTofu, Terraform, and Pulumi processes.
-- Uses a simulated GitHub API and disposable state; no GitHub, AWS, GCP, or Pulumi Cloud token is needed.
-- Verifies create, update, delete, no-op, approval gates, failure persistence, saved plans, and lock cleanup.
-- [Local E2E](.github/workflows/e2e-local.yml) runs the same harness in CI and uploads diagnostic reports.
-- Local E2E also runs the Reeve S3 and GCS adapter contracts against disposable local servers without cloud credentials.
-- [Reeve Shared E2E](.github/workflows/reeve-shared.yml) exercises the pinned reusable GitOps workflow on disposable live PRs.
-- [Reeve Shared Drift E2E](.github/workflows/reeve-shared-drift.yml) exercises the same workflow in manual drift mode with OpenTofu and filesystem state.
-- [Reeve Shared Maintenance E2E](.github/workflows/reeve-shared-maintenance.yml) exercises the same workflow in manual maintenance mode without installing an IaC engine.
-- [Guided playground](docs/playground.md) creates an App-owned PR and exercises approval, denial, locking, failure, break-glass, and cleanup with the selected local engine.
-- [Cloud Blob Contract](.github/workflows/cloud-blob-contract.yml) runs the same storage contract against trusted AWS and GCP buckets with federated credentials.
-- Read [E2E setup and limits](e2e/README.md) and [live GitHub identity setup](e2e/github-apps.md).
-- Read [cloud bucket setup](e2e/cloud-buckets.md) before enabling AWS or GCP contract runs.
+The task builds the sibling Reeve checkout, runs real engine processes against simulated GitHub responses, and writes diagnostic reports.
+It uses disposable state and leaves the checked-in demos' state alone. Initial tool and dependency downloads need network access.
+
+[Choose a candidate, read reports, or find a scenario](e2e/README.md).
+Local S3/GCS emulator tests are separate commands, also included in the Local E2E workflow.
 
 ## Live GitHub acceptance
 
-- Install the two scoped test Apps described in [e2e/github-apps.md](e2e/github-apps.md).
-- Run **Live GitHub E2E** manually from `master`.
-- The workflow creates a disposable PR, exercises author and reviewer separation, and removes its branch and PR.
-- The Apps mint short-lived installation tokens only after the trusted Reeve source and harness are built.
+The manual **Live GitHub E2E** workflow creates a disposable PR and tests separate author and reviewer identities, approval changes, and cleanup.
+[Set up the two Apps and run the workflow](e2e/github-apps.md).
 
-The ordinary shared-workflow callers use local state to verify routing and setup in one run.
-Use the live harness or configured cloud lanes for lifecycle behavior that crosses workflow runs.
+The [guided playground](docs/playground.md) uses the same Apps for a human-driven tour of all three engines.
+Access requirements and the first command are in the tour guide.
 
 ## Layout
 
-```
+```text
 reeve-test/
-├── .reeve/
-│   ├── shared.yaml      # filesystem bucket, approvals, freeze, etc.
-│   └── pulumi.yaml      # engine config: pulumi binary + stack patterns
-├── projects/
-│   ├── random-name/     # RandomPet generator, dev + prod stacks
-│   ├── random-secret/   # RandomPassword generator, dev stack only
-│   └── random-fail/     # previews clean, always fails on apply (dev only)
-├── go.mod               # module (used by all projects)
-└── README.md
+├── .reeve/            # Pulumi demo configuration
+├── projects/          # Random name, secret, and intentional-failure demos
+├── tf/                # Separate OpenTofu root; can be adapted to Terraform
+├── playground/        # Engine selectors for temporary guided PRs
+├── e2e/               # Automated scenarios, fixtures, and cloud bootstrap
+├── docs/              # Guided tour, local demos, and workflow guide
+└── .github/workflows/ # Local, live, guided, shared, and cloud test workflows
 ```
 
 ## One-time setup
 
-With [mise](https://mise.jdx.dev):
-
-```bash
-mise install
-mise run setup
-```
-
-- `setup`: builds sibling reeve, local pulumi backend, inits all four stacks
-- Daily: `lint` / `stacks` / `preview` / `locks` / `state`
-- Go deps: `tidy` / `update`
-- Pre-push: `check`. Fresh start: `clean`. Full list: `mise tasks`
-
-Or by hand:
-
-```bash
-# 1. Build reeve from sibling repo (or `go install` into PATH).
-( cd ../reeve && go build -o bin/reeve ./cmd/reeve )
-export PATH="$PWD/../reeve/bin:$PATH"
-
-# 2. Pulumi local-file backend, scoped to this repo.
-pulumi login file://./pulumi-state
-
-# 3. Pull Go deps (Pulumi `runtime: go` shells out to `go run`).
-go mod tidy
-
-# 4. Initialise stacks the projects expect.
-( cd projects/random-name   && pulumi stack init dev  --secrets-provider=passphrase --non-interactive )
-( cd projects/random-name   && pulumi stack init prod --secrets-provider=passphrase --non-interactive )
-( cd projects/random-secret && pulumi stack init dev  --secrets-provider=passphrase --non-interactive )
-( cd projects/random-fail   && pulumi stack init dev  --secrets-provider=passphrase --non-interactive )
-
-# Set a passphrase env var so non-interactive runs succeed.
-export PULUMI_CONFIG_PASSPHRASE="reeve-test"
-```
+The automated suite prepares its own fixtures. To work with the checked-in Pulumi projects instead, follow [local demo setup](docs/local-demos.md#pulumi).
+That guide retains both the mise setup task and the manual setup steps.
 
 ## Exercise reeve
 
-All commands run from the repo root and discover `.reeve/` automatically.
-
-Read-only checks (no Pulumi invocation needed):
-
-```bash
-reeve lint                          # validates .reeve/ config
-reeve stacks                        # enumerates discovered stacks
-reeve rules explain random-name/prod
-```
-
-Local preview against all stacks (requires `pulumi` CLI on PATH and the
-one-time setup above):
-
-```bash
-reeve run preview --local
-```
-
-Inspect what reeve wrote:
-
-```bash
-ls -R .reeve-state/
-```
-
-Locks introspection:
-
-```bash
-reeve locks list
-reeve locks explain random-name/prod
-```
-
-Tip: pass `--log-level debug` to any command for the full slog trace
-(check_run inspection, gate evaluation, etc.).
-
-## Run via GitHub Actions
-
-- [Reeve Shared E2E](.github/workflows/reeve-shared.yml) is the copy-ready GitOps caller.
-- [Reeve Shared Drift E2E](.github/workflows/reeve-shared-drift.yml) is the scheduled/manual drift caller.
-- [Reeve Shared Maintenance E2E](.github/workflows/reeve-shared-maintenance.yml) is the cleanup caller.
-- Every caller pins one exact Reeve candidate commit and delegates setup to the maintained reusable workflow.
-- Engine and state credentials come from Reeve auth providers; the callers do not accept long-lived engine-token secrets.
-- AWS and GCP storage contracts use GitHub OIDC federation after the variables in [cloud bucket setup](e2e/cloud-buckets.md) exist.
+[Local demos](docs/local-demos.md#inspect-and-preview) covers configuration checks, stack discovery, previews, locks, state inspection, debugging, and cleanup.
 
 ## OpenTofu / Terraform scenarios (`tf/`)
 
-reeve allows one engine config per root. The HCL scenarios are a second
-consumer root under `tf/`:
+Reeve loads one engine per root. The repository root demonstrates Pulumi; `tf/` is the OpenTofu demo root.
+[HCL demo instructions](docs/local-demos.md#opentofu-and-terraform) explain the projects, workspaces, and how to select Terraform. The automated suite tests Terraform and OpenTofu separately.
 
-```
-tf/
-├── .reeve/
-│   ├── shared.yaml      # same bucket/approvals/break-glass wiring as the root
-│   └── tofu.yaml        # engine: tofu; workspace-per-stack model
-└── envs/
-    ├── random-name/     # random_pet, dev + prod workspaces
-    └── random-fail/     # terraform_data + local-exec exit 1; plan clean, apply fails
-```
+## Run via GitHub Actions
 
-- Self-contained: hashicorp/random + builtin `terraform_data`, local state, no cloud creds
-- Declared workspaces are authoritative; reeve creates them on first use
-- Local loop: `mise run tf-lint` / `tf-stacks` / `tf-preview` (mise installs `opentofu`)
-- CI: [Reeve Shared E2E](.github/workflows/reeve-shared.yml) selects `root: tf`
-  and installs the pinned OpenTofu version through the reusable workflow
-- A PR touching one root maps to zero stacks in the other. Both workflows coexist
-- Terraform instead of OpenTofu: `engine.type: terraform`, `binary.path: terraform`.
-  One adapter, two registrations
+[Workflow guide](docs/workflows.md) explains which workflow to run, what it exercises, its source pin, and where to find results.
+It includes the shared GitOps, drift, and maintenance callers as well as the local, guided, live, and cloud tests.
 
 ## Boundaries
 
-- The random provider exercises Reeve without creating paid workload resources.
-- Filesystem state is job-local and does not claim cross-run persistence.
-- The manual live harness owns the complete GitHub approval lifecycle in one trusted job.
-- Real S3 and GCS adapter acceptance remains opt-in until its federated resources are configured.
+- Local fixtures use built-in, component, or random resources and need no cloud workload credentials.
+- Filesystem state lasts for one local scenario or job. Separate Actions runs need shared storage to prove persistence between runs.
+- Live GitHub tests and the tour add real App reviews while keeping engine state in one job.
+- Real S3/GCS tests require the configured cloud resources. Emulator results include explicit conditional-delete limitations.
+
+The harness is still expanding. Use the [coverage table](e2e/README.md#coverage) and recorded results for the scenario and Reeve version you need.
+
+[Browse the documentation](docs/README.md).

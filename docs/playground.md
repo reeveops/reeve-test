@@ -1,69 +1,91 @@
 # Try Reeve now
 
-The guided playground creates a temporary pull request and lets you use Reeve without installing a CLI, configuring a bucket, or supplying cloud credentials.
+Follow a temporary pull request through previews, approvals, applies, and recovery with Pulumi, Terraform, or OpenTofu.
+You do not need a local CLI, bucket, or cloud workload credentials.
 
-Choose an engine:
+## Before you begin
 
-- [Try Reeve with OpenTofu](https://github.com/reeveops/reeve-test/issues/new?template=playground-opentofu.yml)
-- [Try Reeve with Terraform](https://github.com/reeveops/reeve-test/issues/new?template=playground-terraform.yml)
-- [Try Reeve with Pulumi](https://github.com/reeveops/reeve-test/issues/new?template=playground-pulumi.yml)
+The guided playground currently accepts people with **write, maintain, or admin access** to `reeveops/reeve-test`.
+Public admission is still disabled while Actions-minute quotas and abuse controls are developed.
+If you do not have access, use the [local demos](local-demos.md) or [local automated tests](../e2e/README.md).
 
-Submit the prefilled request. Reeve Test creates and labels the playground PR, closes the request, and replies with the PR and controller-run links.
+Only the person who requests a session can advance it. Allow time to stay with the tour: it stops after five minutes waiting for a command or twenty minutes of controller execution.
 
-The PR explains that setup is running and links to the exact Actions run. Reeve posts the guided progress comment after setup and the initial preview finish.
+## 1. Choose an engine
+
+| Engine | Start a session |
+| --- | --- |
+| Pulumi | [Request a Pulumi playground](https://github.com/reeveops/reeve-test/issues/new?template=playground-pulumi.yml) |
+| Terraform | [Request a Terraform playground](https://github.com/reeveops/reeve-test/issues/new?template=playground-terraform.yml) |
+| OpenTofu | [Request an OpenTofu playground](https://github.com/reeveops/reeve-test/issues/new?template=playground-opentofu.yml) |
+
+Submit the prefilled request with its confirmation checked.
+The launcher creates an App-owned PR, labels it, closes your request, and replies with links to the PR and controller run.
+
+## 2. Follow the progress comment
+
+Open the PR and wait for setup and the initial preview. The PR links to the Actions run so you can see setup or queue progress.
+One progress comment stays updated with the next command to enter.
+
+Copy that command into a new PR comment. You can use `/reeve explain` at the first step, or continue immediately with `/reeve apply` (also accepted as `/reeve up`).
 
 ## What you will see
 
-The PR guides you through:
-
-1. An initial create preview followed by a preview containing additions, changes, deletions, and replacements.
-2. `/reeve explain` output for the selected stack.
-3. An apply denied by approval policy.
-4. A real GitHub App approval followed by a successful local-only apply.
+1. A create preview, then a preview with additions, changes, deletions, and replacements.
+2. An optional explanation of the selected stack's gates.
+3. An apply denied because approval is missing.
+4. A real GitHub App approval and a successful local apply.
 5. A changes-requested denial.
-6. An apply blocked by a stack lock.
-7. A deterministic engine failure and its persisted diagnostics.
-8. A justification-gated break-glass apply.
-9. A converged no-op and final audit summary.
-
-The controller keeps one progress comment updated with the next command. Commands from other users and commands outside the active stage are ignored.
-
-## State and safety
-
-- OpenTofu and Terraform use local state with built-in `terraform_data` resources.
-- Pulumi uses a local `file://` backend and a playground-only passphrase.
-- No engine receives cloud credentials or creates external resources.
-- The workflow never checks out or executes the playground PR branch.
-- A session stops after five idle minutes or twenty total minutes.
-- The PR closes when the session finishes or expires.
-- A nightly cleanup workflow closes expired, stranded PRs carrying the `reeve-playground` label.
-- Active and queued controller runs survive cleanup, and up to 100 sessions can wait for the single playground runner.
-
-The first version accepts repository collaborators. Public admission will remain disabled until Actions-minute quotas and abuse controls are defined.
+6. A stack lock blocking apply.
+7. An intentional engine failure and its saved diagnostics.
+8. A break-glass apply with a required justification.
+9. A converged no-op and the final audit summary.
 
 ## Commands
 
-Follow the progress comment. The tour uses these commands:
+Follow the active instruction rather than submitting the whole list at once.
 
-```text
-/reeve explain playground/default       # OpenTofu and Terraform
-/reeve explain reeve-e2e-pulumi/dev     # Pulumi
-/reeve apply                            # `/reeve up` also works
-/playground approve
-/playground request-changes
-/reeve breakglass "playground recovery" apply
-/playground finish
-```
+| Command | Use it for |
+| --- | --- |
+| `/reeve explain reeve-e2e-pulumi/dev` | Explain the Pulumi stack. |
+| `/reeve explain playground/default` | Explain the Terraform or OpenTofu stack. |
+| `/reeve apply` or `/reeve up` | Try the next apply step. |
+| `/playground approve` | Ask the reviewer App to approve during the approval step. |
+| `/playground request-changes` | Exercise the changes-requested step. |
+| `/reeve breakglass "playground recovery" apply` | Exercise the justified recovery step. |
+| `/playground help` | Repeat the current instruction. |
+| `/playground finish` | End your session early. |
 
-The explain step is optional. Use `/reeve apply` or `/reeve up` after the initial preview to continue immediately.
+Commands from other users do not advance the session. If your command belongs to a different stage, the controller replies with the command it expects.
 
-Use `/playground help` at any stage to repeat the current instruction.
-Commands from another stage get an immediate reply with the command currently expected.
+## If the tour does not advance
+
+| What you see | What to do |
+| --- | --- |
+| No PR was created | Check your repository access and the request confirmation. Admission is limited to this repository. |
+| The request says the queue is full | Open a new request after an active session finishes. |
+| The PR says setup is running | Follow its controller-run link; engine setup and the first preview happen before the progress comment. |
+| The run is queued | Wait for the active tour to finish. One controller runs at a time; admission is capped at 100 active or queued sessions. |
+| Your command did not advance the tour | Use the requesting account and follow the latest progress comment; `/playground help` repeats it. |
+| A check is red after an intentional failure | Read the progress comment for the next recovery step. If the controller itself failed, inspect the run's logs and diagnostic artifact. |
+
+## State and safety
+
+Terraform and OpenTofu use built-in `terraform_data` resources and local state. Pulumi uses a local `file://` backend and a playground-only passphrase.
+No engine receives cloud credentials or creates external workload resources.
+
+The controller runs trusted fixture code and never checks out or executes the temporary PR branch.
+It reads your comments and runs Reeve within one job; the ordinary shared GitOps caller skips playground PRs.
+This demonstrates the guided flow with real GitHub reviews, while standard event routing and state shared across jobs have separate tests.
 
 ## Cleanup
 
-The session closes its PR when complete. `/playground finish` closes it immediately.
+The controller closes its PR and deletes its App-owned branch when the tour finishes, expires, or you use `/playground finish`.
+If the runner stops before cleanup, the nightly sweeper removes expired, stranded sessions. Active and queued runs are preserved.
 
-If a runner stops before cleanup, the nightly sweeper closes the expired labelled PR and deletes its App-owned branch.
+The launcher records a six-hour expiry for stranded PRs; this is separate from the running tour's five-minute command wait and twenty-minute limit.
 
-After the tour, use Reeve's reusable workflow guide to add the same flow to a real repository.
+## Use Reeve in your repository
+
+Continue with [Reeve's getting-started guide](https://github.com/reeveops/reeve/blob/master/docs/getting-started.md) and [shared workflow setup](https://github.com/reeveops/reeve/blob/master/docs/github-actions.md).
+For repeatable automated scenarios, see [local E2E coverage](../e2e/README.md#coverage).
